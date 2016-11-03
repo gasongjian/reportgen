@@ -374,12 +374,12 @@ rptview(d.OutputPath);
 
 成果预览：
 
-![schoolreport.png](https://github.com/gasongjian/reportgen/blob/master/word(matlab)/schoolreport.png)
+![schoolreport.png](schoolreport.png)
 
 除此之外，本文还提供了一个批量生成奖状的模板(在Word里也可以通过邮件合并功能实现)供参考。
 
 
-![jiangzhuang.png](https://github.com/gasongjian/reportgen/blob/master/word(matlab)/jiangzhuang.png)
+![jiangzhuang.png](jiangzhuang.png)
 
 
 
