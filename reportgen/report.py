@@ -82,6 +82,7 @@ def df_to_chartdata(df,datatype,number_format=None):
     XyChartData: 散点图数据
     BubbleChartData:气泡图数据
     '''
+    df=pd.DataFrame(df)
     datatype=datatype.lower()
     if datatype == 'chartdata':
         chart_data = ChartData()
@@ -250,7 +251,8 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     slide_width=prs.slide_width
     slide_height=prs.slide_height
     # 可能需要修改以适应更多的情形
-    slide = prs.slide_masters[layouts[0]].slide_layouts[layouts[1]]
+    title_only_slide = prs.slide_masters[layouts[0]].slide_layouts[layouts[1]]
+    slide = prs.slides.add_slide(title_only_slide)
     #title=u'这里是标题'
     slide.shapes.title.text = title
     left,top = Emu(0.15*slide_width), Emu(0.10*slide_height)
@@ -258,7 +260,7 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
 
-def wenjuanwang(filepath='.\\data'):
+def wenjuanwang(filepath='.\\questionnaire_data'):
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
@@ -269,7 +271,7 @@ def wenjuanwang(filepath='.\\data'):
         filename3=os.path.join(filepath,'code.csv')
     else:
         print('can not dection the filepath!')
-
+        
     d1=pd.read_csv(filename1,encoding='gbk')
     d1.drop([u'答题时长'],axis=1,inplace=True)
     d2=pd.read_csv(filename2,encoding='gbk')
@@ -320,11 +322,9 @@ def wenjuanwang(filepath='.\\data'):
             code[key]['code_r']=dict(zip(code[key]['qlist'],code_r))
     return (d2,code)
 
+
 def wenjuanxing(filepath='.\\data',headlen=6):
     #headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
-    '''
-    目前还未解决矩阵单选题的问题
-    '''
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
@@ -332,13 +332,13 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         filename1=os.path.join(filepath,'All_Data_Readable.xls')
         filename2=os.path.join(filepath,'All_Data_Original.xls')
     else:
-        print('can not dection the filepath!')
-
-
+        print('can not dection the filepath!') 
+    
+    
     d1=pd.read_excel(filename1,encoding='gbk')
     d2=pd.read_excel(filename2,encoding='gbk')
-
-
+    d2.replace({-2:np.nan,-3:np.nan},inplace=True) 
+    
     code={}
     for name in d1.columns[headlen:]:
         tmp=re.findall(u'^(\d{1,2})[、：:]',name)
@@ -352,19 +352,22 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             code[new_name]['code']={}
             code[new_name]['qtype']=''
             code[new_name]['qtype2']=''
+            code[new_name]['sample_len']=0
         else:
             #raise Exception(u"can not dection the NO. of question.")
             #print('can not dection the NO. of question')
             #print(name)
             pass
-
+    
     for i,name in enumerate(d2.columns[6:]):
         tmp1=re.findall(u'^(\d{1,2})[、：:]',name)
         tmp2=re.findall(u'^第(.*?)题',name)
         if tmp1:
+            
             current_name='Q'+tmp1[0]# 当前题目的题号
             d2.rename(columns={name:current_name},inplace=True)
             code[current_name]['qlist'].append(current_name)
+            code[current_name]['sample_len']=sum(d2[current_name]>=0)
             #code[current_name]['qtype']=u'单选题'
             c1=d1[current_name].unique()
             c2=d2[current_name].unique()
@@ -380,11 +383,13 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 current_name=name0
                 name1='Q'+tmp2[0]+'_A%s'%j
                 c2=d2[name].unique()
+                code[current_name]['sample_len']=sum(d2[name]>=0)
+                code[current_name]['qtype']=u'多选题'
                 if (c2.dtype!=object) & all(c2<=1):
                     code[current_name]['qtype']=u'多选题'
                 elif (c2.dtype!=object) & any(c2)>1:
                     code[current_name]['qtype']=u'矩阵单选题'
-
+    
             else:
                 j+=1#记录多选题的小题号
                 name1='Q'+tmp2[0]+'_A%s'%j
@@ -394,7 +399,11 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             code[current_name]['code'][name1]=tmp3
         else:
             print(d2.columns[i+6])
+        # 删除字典中的nan
+        if np.nan in  code[current_name]['code']:
+            del  code[current_name]['code'][np.nan]
     return (d2,code)
+
 
 
 if __name__ == '__main__':
@@ -551,4 +560,4 @@ if __name__ == '__main__':
 
     # 添加致谢页
     #slide = prs.slides.add_slide(prs.slide_layouts[8])
-    prs.save('test6.pptx')
+    prs.save('test.pptx')
