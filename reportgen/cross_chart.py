@@ -43,7 +43,11 @@ def contingency(df,col_dis=None,row_dis=None,alpha=0.05):
     1、题目分为单选(互斥变量)和多选(非互斥变量)，非互斥变量无形中增加了总样本量，默认把需
     要检验的变量放在列中，且要求是互斥变量,如若行是非互斥变量，则需要提供互斥变量的样本频数表
 
-    返回字典结果体
+    输入：
+    col_dis: 列变量的频数分布
+    row_dis: 行变量的频数分布
+
+    返回字典格式
     chi_test: 卡方检验结果，1:显著；0:不显著；-1：期望值不满足条件
     coef: 包含chi2、p值、V相关系数
     log: 记录一些异常情况
@@ -101,7 +105,7 @@ def contingency(df,col_dis=None,row_dis=None,alpha=0.05):
 
 
 # =================[问卷网数据格式化]==========================
-d2,code=rpt.wenjuanwang(filepath='.\\questionnaire_data')
+d2,code=rpt.wenjuanwang(filepath='C:\\home\\Codinglife\\mypython3\\axon7\\data')
 
 
 # ================数据清洗=================
@@ -118,30 +122,58 @@ filename=u'人群差异'
 
 
 
-prs = Presentation()
-prs1 = Presentation()# 用于统计TGI指数
 
-# ======================相关参数
+
+
+
+#def crosschart(data,code):
+'''
+data 和 code必须有，且code必须有以下变量：
+code.qlist
+code.content
+code.qtype
+'''
+
+#相关参数
+data=d2
+code=code
+cross_class='Q49'
+del_class=None
 max_column_chart=20
+data_style='TGI'
+
+
+
+prs = Presentation()
+
+
 
 #total_qlist=list(code.keys())
 total_qlist_0=['Q'+'%s'%(i+1) for i in range(len(code.keys()))]
+data_style=data_style.upper()
 
+
+if isinstance(code,dict):
+    if all(['Q' in c[0] for c in code.keys()]):
+        total_qlist_0=sorted(code,key=lambda c:int(c[1:]))
+    else:
+        total_qlist_0=code.keys()
+else:
+    total_qlist_0=data.columns
 
 # ===========统计具有显著性差异的数字和题目
 difference=dict(zip(total_qlist_0,[-1]*len(total_qlist_0)))
 difference[cross_class]=-2 #-2就代表了是交叉题目
 
 # 需要从列表中删除的题目
-remove_list=['Q1',cross_class]
-total_qlist=[x for x in total_qlist_0 if x not in remove_list]
-# 交叉变量类别列表
+total_qlist=total_qlist_0.remove(cross_class)
+# 交叉变量所含类别列表
 cross_class_list=list(d2[cross_class].unique())
 if delclass:
     cross_class_list.remove(delclass)
 
-# 每个类别的样本数
-cn=d2[cross_class].value_counts()
+# 交叉变量中每个类别的样本数
+cn=data[cross_class].value_counts()
 cn[u'总体']=cn.sum()
 
 
@@ -150,7 +182,7 @@ title=u'背景说明'
 summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
 summary=summary+'\n'+u'各类别样本量如下：'
 rpt.plot_table(prs,cn,title=title,summary=summary)
-rpt.plot_table(prs1,cn,title=title,summary=summary)
+
 
 
 
@@ -162,6 +194,10 @@ for qq in total_qlist:
 
     qtitle=code[qq]['content']
     qlist=code[qq]['qlist']
+    if 'sample_len' in code[qq]:
+        row_len=code[qq]['sample_len']
+    else:
+        row_len=len(data)
     if (u'满意度' in qtitle) and (u'整体' in qtitle):
         qtype2=u'整体满意度'
         t=d2.groupby([cross_class])[[qq]].mean()-1
@@ -234,40 +270,52 @@ for qq in total_qlist:
                 qlist=qlist[:-1]
             t=d2.groupby([cross_class])[qlist].sum().T
             t[u'总体']=d2[qlist].sum()
-        t.rename(index=code[qq]['code'],inplace=True)
+
+        '''t
+        qq\cross_class| B1 | B2 | B3 | 总体
+        A1 |          n11  |n12 |n13 |
+        A2 |          n21 |n22  |n23 |
+        '''
+        if 'code' in code[qq]:
+            t.rename(index=code[qq]['code'],inplace=True)
         # 小样本剔除
         #t=t[t[u'总体']>=30] #剔除样本量小于30的行指标
         if u'其他【请注明】' in t.index:
             t.drop([u'其他【请注明】'],axis=0,inplace=True)
+        if u'其他' in t.index:
+            t.drop([u'其他'],axis=0,inplace=True)
         if delclass:
             t.drop([delclass],axis=1,inplace=True)
-        # 卡方检验
-        chi2_data=chi2_test(t.drop([u'总体'],axis=1))
-        # 把样本频数改成百分比
-        for i in range(len(t.columns)):
-            t.iloc[:,i]=t.iloc[:,i]/cn[t.columns[i]]
-        # 生成TGI指数
-        t_TGI=t.copy()
-        for i in range(len(t.columns)):
-            t_TGI.iloc[:,i]=t_TGI.iloc[:,i]/t_TGI[u'总体']
-        # 剔除t中的总体
-        t_TGI.drop([u'总体'],axis=1,inplace=True)
-        t.drop([u'总体'],axis=1,inplace=True)
-        #t.to_csv(qq+'.csv',encoding='gbk')
+
+
+
+        cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
+        t1=cc[data_style]
+
+        # title
         title=qq+': '+code[qq]['content']
-        if chi2_data[0]:
+        # summary
+        if cc[chi_test]==1:
             difference[qq]=1
-            summary=u'卡方检验 p值为 %s <0.05, 即存在显著性差异' %(chi2_data[1])
-        else:
+            summary=u'卡方检验 p值为 %s <0.05, 即存在显著性差异' %(cc['coef']['p_value'])
+        elif cc[chi_test]==0
             difference[qq]=0
-            summary=u'卡方检验 p值为 %.2f >0.05, 即不存在显著性差异' %(chi2_data[1])
-        #summary=summary+'\n'+u'我是结论'
-        if len(t)>max_column_chart:
-            rpt.plot_chart(prs,t,'BAR_CLUSTERED',title=title,summary=summary)
-            rpt.plot_chart(prs1,t_TGI,'BAR_CLUSTERED',title=title,summary=summary)
+            summary=u'卡方检验 p值为 %.2f >0.05, 即不存在显著性差异' %(cc['coef']['p_value'])
         else:
-            rpt.plot_chart(prs,t,'COLUMN_CLUSTERED',title=title,summary=summary)
-            rpt.plot_chart(prs1,t_TGI,'COLUMN_CLUSTERED',title=title,summary=summary)
+            difference[qq]=-1
+            summary=u'不满足卡方检验的条件'
+        if cc['significant']:
+            tmp=str(cc['significant'])
+            summary=summary+'\n'+u'相对而言，显著的有：'+ tmp[1:-1]
+
+        # footnote
+        footnote=u'数据来源于'+qq+',样本N=%s'%row_len
+
+        # 把t1绘制到ppt上
+        if len(t1)>max_column_chart:
+            rpt.plot_chart(prs,t1,'BAR_CLUSTERED',title=title,summary=summary,footnote=footnote)
+        else:
+            rpt.plot_chart(prs,t1,'COLUMN_CLUSTERED',title=title,summary=summary,footnote=footnote)
         continue
 
     if code[qq]['qtype'] in [u'排序题']:
