@@ -260,6 +260,40 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
 
+def read_code(filename):
+    filename='code.xlsx'
+    d=pd.read_excel(filename,header=None)
+    d.replace({np.nan:'NULL'},inplace=True)
+    d=d.as_matrix()
+    code={}   
+    for i in range(len(d)):
+        tmp=d[i,0]
+        if tmp == 'key':
+            code[d[i,1]]={}
+            key=d[i,1]
+        elif tmp == 'qlist':
+            ind=np.argwhere(d[i+1:,0]!='NULL')
+            if ind.any():
+                j=i+1+ind[0][0]
+            else:
+                j=len(d)-1
+            qlist=list(d[i:j,1])
+            code[key][tmp]=qlist
+        elif tmp in ['code','code_r']:
+            ind=np.argwhere(d[i+1:,0]!='NULL')
+            if ind.any():
+                j=i+1+ind[0][0]
+            else:
+                j=len(d)-1
+            tmp1=list(d[i:j,1])
+            tmp2=list(d[i:j,2])
+            code[key][tmp]=dict(zip(tmp1,tmp2))
+        elif tmp == 'NULL':
+            continue
+        else:
+            code[key][tmp]=d[i,1]
+    return code
+    
 def wenjuanwang(filepath='.\\questionnaire_data'):
     if isinstance(filepath,list):
         filename1=filepath[0]
