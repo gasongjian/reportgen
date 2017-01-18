@@ -261,11 +261,10 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox.text_frame.text=summary
 
 def read_code(filename):
-    filename='code.xlsx'
     d=pd.read_excel(filename,header=None)
     d.replace({np.nan:'NULL'},inplace=True)
     d=d.as_matrix()
-    code={}   
+    code={}
     for i in range(len(d)):
         tmp=d[i,0]
         if tmp == 'key':
@@ -293,8 +292,43 @@ def read_code(filename):
         else:
             code[key][tmp]=d[i,1]
     return code
-    
-def wenjuanwang(filepath='.\\questionnaire_data'):
+
+def to_code(code,savename='code.xlsx',method='xlsx'):
+    method=method.lower()
+    if method != 'xlsx':
+        return
+    tmp=pd.DataFrame(columns=['name','value1','value2'])
+    i=0
+    for key in code:
+        code0=code[key]
+        tmp.loc[i]=['key',key,'']
+        i+=1
+        for key0 in code0:
+            tmp2=code0[key0]
+            tmp.loc
+            if type(tmp2) == list:
+                tmp.loc[i]=[key0,tmp2[0],'']
+                i+=1
+                for ll in tmp2[1:]:
+                    tmp.loc[i]=['',ll,'']
+                    i+=1
+            elif type(tmp2) == dict:
+                j=0
+                for key1 in tmp2.keys():
+                    if j==0:
+                        tmp.loc[i]=[key0,key1,tmp2[key1]]
+                    else:
+                        tmp.loc[i]=['',key1,tmp2[key1]]
+                    i+=1
+                    j+=1
+            else:
+                if tmp2:
+                    tmp.loc[i]=[key0,tmp2,'']
+                    i+=1
+    tmp.to_excel(savename,index=False,header=False)
+
+
+def wenjuanwang(filepath='.\\data'):
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
@@ -305,7 +339,7 @@ def wenjuanwang(filepath='.\\questionnaire_data'):
         filename3=os.path.join(filepath,'code.csv')
     else:
         print('can not dection the filepath!')
-        
+
     d1=pd.read_csv(filename1,encoding='gbk')
     d1.drop([u'答题时长'],axis=1,inplace=True)
     d2=pd.read_csv(filename2,encoding='gbk')
@@ -366,18 +400,18 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         filename1=os.path.join(filepath,'All_Data_Readable.xls')
         filename2=os.path.join(filepath,'All_Data_Original.xls')
     else:
-        print('can not dection the filepath!') 
-    
-    
+        print('can not dection the filepath!')
+
     d1=pd.read_excel(filename1,encoding='gbk')
     d2=pd.read_excel(filename2,encoding='gbk')
-    d2.replace({-2:np.nan,-3:np.nan},inplace=True) 
-    
+    d2.replace({-2:np.nan,-3:np.nan},inplace=True)
+
     code={}
     for name in d1.columns[headlen:]:
         tmp=re.findall(u'^(\d{1,2})[、：:]',name)
         if tmp:
             new_name='Q'+tmp[0]
+            current_name='Q'+tmp[0]
             code[new_name]={}
             content=re.findall(u'\d{1,2}[、：:](.*)',name)
             code[new_name]['content']=content[0]
@@ -387,25 +421,51 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             code[new_name]['qtype']=''
             code[new_name]['qtype2']=''
             code[new_name]['sample_len']=0
+            qcontent=str(d1[new_name])
+            if '┋' in qcontent:
+                code[new_name]['qtype']='多选题'
+            elif '→' in qcontent:
+                code[new_name]['qtype']='排序题'
         else:
+            tmp2=re.findall(u'^第(\d{1,2})题\(.*?\)',name)
+            if tmp2:
+                new_name='Q'+tmp2[0]
+            else:
+                pass
+            if new_name not in code.keys():
+                j=1
+                current_name=new_name
+                new_name=new_name+'_R%s'%j
+                code[current_name]={}
+                code[current_name]['content']=current_name
+                code[current_name]['qlist']=[]
+                code[current_name]['code']={}
+                code[current_name]['code_r']={}
+                code[current_name]['qtype']=u'矩阵单选题'
+                code[current_name]['qtype2']=''
+                code[current_name]['sample_len']=0
+                d1.rename(columns={name:new_name},inplace=True)
+            else:
+                j+=1
+                new_name=new_name+'_R%s'%j
+                d1.rename(columns={name:new_name},inplace=True)
             #raise Exception(u"can not dection the NO. of question.")
             #print('can not dection the NO. of question')
             #print(name)
-            pass
-    
+            #pass
+
     for i,name in enumerate(d2.columns[6:]):
         tmp1=re.findall(u'^(\d{1,2})[、：:]',name)
         tmp2=re.findall(u'^第(.*?)题',name)
         if tmp1:
-            
             current_name='Q'+tmp1[0]# 当前题目的题号
             d2.rename(columns={name:current_name},inplace=True)
             code[current_name]['qlist'].append(current_name)
-            code[current_name]['sample_len']=sum(d2[current_name]>=0)
+            code[current_name]['sample_len']=d2[current_name].notnull().sum()
             #code[current_name]['qtype']=u'单选题'
             c1=d1[current_name].unique()
             c2=d2[current_name].unique()
-            if c2.dtype != object:
+            if (c2.dtype != object) and len(c2)<code[current_name]['sample_len']*0.6:
                 code[current_name]['code']=dict(zip(c2,c1))
                 code[current_name]['qtype']=u'单选题'
             else:
@@ -415,27 +475,39 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             if name0 != current_name:
                 j=1#记录多选题的小题号
                 current_name=name0
-                name1='Q'+tmp2[0]+'_A%s'%j
-                c2=d2[name].unique()
-                code[current_name]['sample_len']=sum(d2[name]>=0)
-                code[current_name]['qtype']=u'多选题'
-                if (c2.dtype!=object) & all(c2<=1):
-                    code[current_name]['qtype']=u'多选题'
-                elif (c2.dtype!=object) & any(c2)>1:
-                    code[current_name]['qtype']=u'矩阵单选题'
-    
+                c2=list(d2[name].unique())
+                if code[current_name]['qtype'] == u'矩阵单选题':
+                    name1='Q'+tmp2[0]+'_R%s'%j
+                    c1=list(d1[name1].unique())
+                    code[current_name]['code']=dict(zip(c2,c1))
+                    #print(dict(zip(c2,c1)))
+                else:
+                    name1='Q'+tmp2[0]+'_A%s'%j
+                code[current_name]['sample_len']=d2[name].notnull().sum()
             else:
                 j+=1#记录多选题的小题号
-                name1='Q'+tmp2[0]+'_A%s'%j
+                c2=list(d2[name].unique())
+                if code[current_name]['qtype'] == u'矩阵单选题':
+                    name1='Q'+tmp2[0]+'_R%s'%j
+                    c1=list(d1[name1].unique())
+                    old_dict=code[current_name]['code'].copy()
+                    new_dict=dict(zip(c2,c1))
+                    old_dict.update(new_dict)
+                    code[current_name]['code']=old_dict.copy()
+                else:
+                    name1='Q'+tmp2[0]+'_A%s'%j
             code[current_name]['qlist'].append(name1)
             d2.rename(columns={name:name1},inplace=True)
             tmp3=re.findall(u'第.*?题\((.*?)\)',name)[0]
-            code[current_name]['code'][name1]=tmp3
-        else:
-            print(d2.columns[i+6])
+            if code[current_name]['qtype'] == u'矩阵单选题':
+                code[current_name]['code_r'][name1]=tmp3
+            else:
+                code[current_name]['code'][name1]=tmp3
         # 删除字典中的nan
-        if np.nan in  code[current_name]['code']:
-            del  code[current_name]['code'][np.nan]
+        keys=list(code[current_name]['code'].keys())
+        for key in keys:
+            if '%s'%key == 'nan':
+                del  code[current_name]['code'][key]
     return (d2,code)
 
 
