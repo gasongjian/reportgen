@@ -11,7 +11,6 @@ pptx.util.Cm(1)=360000
 slide的大小:
 pptx.Presentation().slide_height
 pptx.Presentation().slide_width
-
 # 对于python2，源代码有一些的bug
 #pptx\\chart\\xmlwriter.py
 1338和1373的：escape(str(name))改为escape(unicode(name))
@@ -20,6 +19,7 @@ pptx.Presentation().slide_width
 import os
 import re
 import sys
+
 
 
 import pandas as pd
@@ -112,7 +112,7 @@ def df_to_chartdata(df,datatype,number_format=None):
         return chart_data
 
 def plot_chart(prs,df,chart_type,title=u'我是标题',summary=u'我是简短的结论',\
-chart_format=None,layouts=[0,5]):
+footnote=None,chart_format=None,layouts=[0,5]):
     '''
     直接将数据绘制到一张ppt上，且高度定制化
     默认都有图例，且图例在下方
@@ -231,7 +231,6 @@ chart_format=None,layouts=[0,5]):
         plot.data_labels.font.size = font_default_size
         #data_labels = plot.data_labels
         #data_labels.position = XL_LABEL_POSITION.BEST_FIT
-
     '''
 
     # 自定义format
@@ -270,7 +269,7 @@ def read_code(filename):
         if tmp == 'key':
             code[d[i,1]]={}
             key=d[i,1]
-        elif tmp == 'qlist':
+        elif tmp in ['qlist','code_order']:
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -299,7 +298,11 @@ def to_code(code,savename='code.xlsx',method='xlsx'):
         return
     tmp=pd.DataFrame(columns=['name','value1','value2'])
     i=0
-    for key in code:
+    if all(['Q' in c[0] for c in code.keys()]):
+        key_qlist=sorted(code,key=lambda c:int(c[1:]))
+    else:
+        key_qlist=code.keys()
+    for key in key_qlist:
         code0=code[key]
         tmp.loc[i]=['key',key,'']
         i+=1
@@ -325,7 +328,10 @@ def to_code(code,savename='code.xlsx',method='xlsx'):
                 if tmp2:
                     tmp.loc[i]=[key0,tmp2,'']
                     i+=1
-    tmp.to_excel(savename,index=False,header=False)
+    if sys.version>'3':
+        tmp.to_excel(savename,index=False,header=False)
+    else:
+        tmp.to_csv(savename,index=False,header=False)
 
 
 def wenjuanwang(filepath='.\\data'):
@@ -423,9 +429,9 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             code[new_name]['sample_len']=0
             qcontent=str(d1[new_name])
             if '┋' in qcontent:
-                code[new_name]['qtype']='多选题'
+                code[new_name]['qtype']=u'多选题'
             elif '→' in qcontent:
-                code[new_name]['qtype']='排序题'
+                code[new_name]['qtype']=u'排序题'
         else:
             tmp2=re.findall(u'^第(\d{1,2})题\(.*?\)',name)
             if tmp2:
@@ -465,11 +471,18 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             #code[current_name]['qtype']=u'单选题'
             c1=d1[current_name].unique()
             c2=d2[current_name].unique()
+            '''
             if (c2.dtype != object) and len(c2)<code[current_name]['sample_len']*0.6:
                 code[current_name]['code']=dict(zip(c2,c1))
                 code[current_name]['qtype']=u'单选题'
             else:
                 code[current_name]['qtype']=u'填空题'
+            '''    
+            if (c2.dtype == object) or (list(c1)==list(c2)):
+                code[current_name]['qtype']=u'填空题'
+            else:
+                code[current_name]['qtype']=u'单选题'
+                code[current_name]['code']=dict(zip(c2,c1)) 
         elif tmp2:
             name0='Q'+tmp2[0]
             if name0 != current_name:
@@ -610,7 +623,6 @@ if __name__ == '__main__':
     '''
     # ----样式-------
     chart.chart_style: 样式(ppt自带的1到48)
-
     # ----坐标轴-------
     axis=chart.category_axis: X轴坐标控制
     axis=chart.value_axis   :Y周坐标控制
@@ -628,7 +640,6 @@ if __name__ == '__main__':
     axis.tick_labels.number_format: 数字格式('0"%"')
     axis.tick_labels.number_format_is_linked
     axis.tick_labels.offset
-
     # ----数据标签-------
     plot = chart.plots[0]
     plot.has_data_labels = True
@@ -638,14 +649,11 @@ if __name__ == '__main__':
     data_labels.font.color.rgb = RGBColor(0x0A, 0x42, 0x80)
     # from pptx.enum.chart import XL_LABEL_POSITION
     data_labels.position = XL_LABEL_POSITION.INSIDE_END
-
     # ----图例-------
     # from pptx.enum.chart import XL_LEGEND_POSITION
     chart.has_legend = True
     chart.legend.position = XL_LEGEND_POSITION.RIGHT
     chart.legend.include_in_layout = False
-
-
     '''
     '''
     category_axis = chart.category_axis
@@ -661,7 +669,6 @@ if __name__ == '__main__':
     tick_labels.number_format = '0"%"'
     tick_labels.font.bold = True
     tick_labels.font.size = Pt(14)
-
     '''
 
     # 添加致谢页
