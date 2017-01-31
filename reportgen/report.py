@@ -286,9 +286,24 @@ def read_code(filename):
                 j=i+1+ind[0][0]
             else:
                 j=len(d)-1
-            qlist=list(d[i:j,1])
-            code[key][tmp]=qlist
+            code[key][tmp]=list(d[i:j,1])
         elif tmp in ['code','code_r']:
+            ind=np.argwhere(d[i+1:,0]!='NULL')
+            if ind.any():
+                j=i+1+ind[0][0]
+            else:
+                j=len(d)-1
+            tmp1=list(d[i:j,1])
+            tmp2=list(d[i:j,2])
+            code[key][tmp]=dict(zip(tmp1,tmp2))
+        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]=='NULL'):
+            ind=np.argwhere(d[i+1:,0]!='NULL')
+            if ind.any():
+                j=i+1+ind[0][0]
+            else:
+                j=len(d)-1
+            code[key][tmp]=list(d[i:j,1])
+        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]!='NULL'):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -534,7 +549,18 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 del  code[current_name]['code'][key]
     return (d2,code)
 
-
+def sa_to_ma(data):
+    '''单选题数据转换成多选题数据
+    data是单选题数据, 要求非有效列别为nan
+    '''
+    if isinstance(data,pd.core.frame.DataFrame):
+        data=data[data.columns[0]]
+    categorys=sorted(data[data.notnull()].unique())
+    data_ma=pd.DataFrame(index=data.index,columns=categorys)
+    for c in categorys:
+        data_ma[c]=data.map(lambda x : int(x==c))
+    data_ma.loc[data.isnull(),:]=np.nan
+    return data_ma
 
 
 
@@ -612,24 +638,21 @@ def rpttable(data,code):
 
 def rptcrosstab(data_index,data_column,code):
     '''
-    默认data_column=data[cross_class] 是交叉分析列标签对应的数据，列数==1
-    code是data_index 的编码，列数大于1
+    交叉分析：默认data_column是自变量
+    data_index:因变量，题目类型等参数有code给出
+    code: dict格式，定义data_index的相关信息
     返回两个数据：
-    t1：默认的百分比表
+    t1：默认的百分比表，行是data_index,列是data_column
     t2：原始频数表，且添加了合计项
     '''
     # 单选题
     data_index=pd.DataFrame(data_index)
     data_column=pd.DataFrame(data_column)
     qtype=code['qtype']
-    cross_class=data_column.columns[0]
-    #columns=data_column[data_column.notnull()].unique()
     index=code['qlist']
-    #len_column=data_column.notnull().sum()
-    #len_index=data_index.notnull().T.any().sum()
+    cross_class=data_column.columns[0]
     column_freq=data_column.iloc[:,0].value_counts()
     column_freq[u'总体']=column_freq.sum()
-    #index_freq=data[cross_class].value_counts()
     if qtype == u'单选题':
         t=pd.crosstab(data_index.iloc[:,0],data_column.iloc[:,0])
         t[u'总体']=data_index.iloc[:,0].value_counts()
@@ -694,83 +717,120 @@ def rptcrosstab(data_index,data_column,code):
 
 
 
-def contingency(df,col_dis=None,row_dis=None,alpha=0.05):
+def contingency(fo,alpha=0.05):
     '''
-    列联表分析：
-    1、生成三种百分表
-    2、如果存在两个变量，则进行列联分析
-    3、当变量存在多个时，进一步进行两两独立性检验
-    需要注意的问题：
-    1、题目分为单选(互斥变量)和多选(非互斥变量)，非互斥变量无形中增加了总样本量，默认把需
-    要检验的变量放在列中，且要求是互斥变量,如若行是非互斥变量，则需要提供互斥变量的样本频数表
-    默认行是qq，列是cross_class
-    输入：
-    col_dis: 列变量的频数分布
-    row_dis: 行变量的频数分布
+    列联表分析：(观察频数表分析)
+    1、生成TGI指数、TWI指数、CHI指数
+    2、独立性检验
+    3、当两个变量不显著时，考虑单个之间的显著性
     返回字典格式
     chi_test: 卡方检验结果，1:显著；0:不显著；-1：期望值不满足条件
     coef: 包含chi2、p值、V相关系数
     log: 记录一些异常情况
-    significant:显著性结果
-    percentum:百分比表，包含_col,_row,_total
+    TGI：
+    TWI：
+    CHI：
+    significant:{
+    .'result': 显著性结果[1(显著),0(不显著),-1(fe小于5的过多)]
+    .'p-value':
+    .'method': chi_test or fisher_test
+    .'vcoef':
+    .'threshold':
+    }
+    summary:{
+    .'summary': 结论提取
+    .'fit_test': 拟合优度检验
+    .'chi_std':
+    .'chi_mean':
     '''
     import scipy.stats as stats
-    conti_data={}
-    if isinstance(df,pd.core.series.Series):
-        df=pd.DataFrame(df)
-    R,C=df.shape
-    if not col_dis:
-        col_dis=df.sum()
-    if not row_dis:
-        row_dis=df.sum(axis=1)
-    #sample=min(col_dis.sum(),row_dis.sum())#样本总数
-    n=df.sum().sum()# 列联表中所有频数之和
-    conti_len=R*C# 列联表的单元数
+    import math
+    cdata={}
+    if isinstance(fo,pd.core.series.Series):
+        fo=pd.DataFrame(fo)
+    R,C=fo.shape
+    if u'总体' in fo.columns:
+        fo.drop([u'总体'],axis=1,inplace=True)
+    if u'合计' in fo.index:
+        fo.drop([u'合计'],axis=0,inplace=True)
+    fe=fo.copy()
+    N=fe.sum().sum()
+    for i in fe.index:
+        for j in fe.columns:
+            fe.loc[i,j]=fe.loc[i,:].sum()*fe.loc[:,j].sum()/N
+    TGI=fo/fe
+    TWI=fo-fe
+    CHI=np.sqrt((fo-fe)*(fo/fe-1))*(TWI.applymap(lambda x: int(x>0))*2-1)
+    PCHI=1/(1+np.exp(-1*CHI))
+    cdata['FO']=fo
+    cdata['FE']=fe
+    cdata['TGI']=TGI
+    cdata['TWI']=TWI
+    cdata['CHI']=CHI
+    cdata['PCHI']=PCHI
 
-    # 卡方检验
-    threshold=ceil(conti_len*0.2)# 期望频数和实际频数不得小于5
-    chiStats = stats.chi2_contingency(observed=df)
-    fe=chiStats[3]# 期望频数
-    if chiStats[1] <= alpha:
-        conti_data['chi_test']=1
+    # 显著性检验(独立性检验)
+    significant={}
+    significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
+    threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
+    if (fo<=5).sum().sum()>=threshold:
+        significant['result']=-1
     else:
-        conti_data['chi_test']=0
+        chiStats = stats.chi2_contingency(observed=fo)
+        significant['pvalue']=chiStats[1]
+        significant['method']='chi-test'
+        significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
+        if chiStats[1] <= alpha:
+            significant['result']=1
+        else:
+            significant['result']=0
+    cdata['significant']=significant
 
-    chi_data=chiStats[0]
-    p_value=chiStats[1]
-    vcoef=sqrt(chi_data/n/min(R-1,C-1))#V相关系数，用于显著性比较
-    conti_data['coef']={'p_value':p_value,'chi_data':chi_data,'vcoef':vcoef}
-    if sum(sum(fe<=5))>=threshold:
-        conti_data['chi_test']=-1
-        conti_data['log']=u'期望频数小于5的单元数过多'
-
-    chi_sum=(df.as_matrix()-fe)**2/fe
-    chi_sum=chi_sum.sum(axis=1)
+    # 列联表分析summary
+    chi_sum=(CHI**2).sum(axis=1)
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)#拟合优度检验
-    significant=list(df.index[np.where(chi_sum>chi_value_fit)])
-    conti_data['significant']=significant
+    fit_test=chi_sum.map(lambda x : int(x>chi_value_fit))
+    summary={}
+    summary['fit_test']=fit_test
+    summary['chi_std']=CHI.unstack().std()
+    summary['chi_mean']=CHI.unstack().mean()
+    print('the std of CHI is %.2f'%summary['chi_std'])
+    conclusion=''
+    for c in CHI.columns:
+        tmp=['%s'%s for s in list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])]
+        if tmp:
+            tmp1=u'{col}更喜欢{s}'.format(col=c,s=','.join(tmp))
+            conclusion=conclusion+tmp1+'; \n'
+    #conclusion=';'.join([u'{col}更喜欢{s}'.format(col=c,s=','.join(['%s'%s for s in \
+    #list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])])) for c in CHI.columns])
+    summary['summary']=conclusion
+    cdata['summary']=summary
+    return cdata
 
-    # 把样本频数改成百分比
-    df[u'合计']=row_dis
-    for i in range(C):
-        df.iloc[:,i]=df.iloc[:,i]/col_dis[df.columns[i]]
-    # 生成TGI指数
-    df_TGI=df.copy()
-    for i in range(C):
-        df_TGI.iloc[:,i]=df_TGI.iloc[:,i]/df_TGI[u'合计']
-    # 剔除t中的总体
-    df_TGI.drop([u'合计'],axis=1,inplace=True)
-    df.drop([u'合计'],axis=1,inplace=True)
 
 
 
 def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
-delclass=None,data_style=None,cross_order=None, significance_test=False, \
-total_display=True,max_column_chart=20):
+delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
+total_display=True,max_column_chart=20,save_dstyle=None):
 
-
+    '''使用帮助
+    data: 问卷数据，包含交叉变量和所有的因变量
+    code: 数据编码
+    cross_class: 交叉变量，单选题或者多选题，例如：Q1
+    filename：文件名,用于PPT和保存相关数据
+    cross_list: 需要交叉分析的变量，缺省为code中的所有变量
+    delclass: 交叉变量中需要删除的单个变量，缺省空
+    plt_dstyle: 绘制图表需要用的数据类型，默认为百分比表，可以选择['TGI'、'CHI'、'TWI']等
+    save_dstyle: 需要保存的数据类型，格式为列表。
+    cross_order: 交叉变量中各个类别的顺序，可以缺少
+    significance_test: 输出显著性校验结果，默认无
+    total_display: PPT绘制图表中是否显示总体情况
+    max_column_chart: 列联表的列数，小于则用柱状图，大于则用条形图
+    '''
     # ===================参数预处理=======================
-    data_style=data_style.upper()
+    if plt_dstyle:
+        plt_dstyle=plt_dstyle.upper()
 
     if not cross_qlist:
         try:
@@ -789,7 +849,11 @@ total_display=True,max_column_chart=20):
     cross_class_freq=data[cross_class].value_counts()
     cross_class_freq[u'总体']=cross_class_freq.sum()
     # 前期统一替换选项编码
-    data[cross_class].replace(code[cross_class]['code'])
+    if code[cross_class]['qtype'] == u'单选题':
+        data[cross_class].replace(code[cross_class]['code'],inplace=True)
+    elif code[cross_class]['qtype'] == u'多选题':
+        data.rename(columns=code[cross_class]['code'],inplace=True)
+
     #交叉分析的样本数统一为交叉变量的样本数
     sample_len=data[cross_class].notnull().sum()
     cn=data[cross_class].value_counts()
@@ -799,7 +863,10 @@ total_display=True,max_column_chart=20):
     prs = Presentation()
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
-    Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
+    Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
+    if save_dstyle:
+        for dstyle in save_dstyle:
+            exec('Writer_'+dstyle+'=pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
@@ -808,16 +875,14 @@ total_display=True,max_column_chart=20):
 
 
     for qq in cross_qlist:
-        '''
-        特殊题型处理
-        整体满意度题：后期归为数值类题型
-        '''
-
+        # 遍历所有题目
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
+        summary=None
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
+        # 交叉统计
         t,t1=rptcrosstab(data[qlist],data[[cross_class]],code=code[qq])
 
         # =======数据修正==============
@@ -835,10 +900,18 @@ total_display=True,max_column_chart=20):
         # =======保存到Excel中========
         t2.to_excel(Writer,qq)
 
-        '''列联表分析[暂缺]
-        cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
+        #列联表分析
+        cdata=contingency(t1,alpha=0.05)
+        summary=cdata['summary']['summary']
+        if plt_dstyle:
+            plt_data=cdata[plt_dstyle]
+        else:
+            plt_data=t.copy()
 
-        '''
+        # 保存指标数据
+        if save_dstyle:
+            for dstyle in save_dstyle:
+                exec('cdata["'+dstyle+'"].to_excel('+'Writer_'+dstyle+',"'+qq+'")')
 
 
 
@@ -849,18 +922,20 @@ total_display=True,max_column_chart=20):
 
 
 
-        # ========================【特殊题型处理区】================================
+        continue
         '''
 
+        # 绘制PPT
         title=qq+': '+qtitle
-        summary=u'这里是结论区域.'
-        footnote=u'样本N=%d'%sample_len
-        if (not total_display) and (u'总体' in t.columns):
-            t.drop([u'总体'],axis=1,inplace=True)
-        if len(t)>max_column_chart:
-            plot_chart(prs,t,'BAR_CLUSTERED',title=title,summary=summary,footnote=footnote)
+        if not summary:
+            summary=u'这里是结论区域.'
+        footnote=u'显著性检验结果为{result},样本N={sample_len}'.format(result=cdata['significant']['result'],sample_len=sample_len)
+        if (not total_display) and (u'总体' in plt_data.columns):
+            plt_data.drop([u'总体'],axis=1,inplace=True)
+        if len(plt_data)>max_column_chart:
+            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,footnote=footnote)
         else:
-            plot_chart(prs,t,'COLUMN_CLUSTERED',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,footnote=footnote)
 
 
 
@@ -874,7 +949,9 @@ total_display=True,max_column_chart=20):
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
     prs.save('.\\out\\'+filename+u'.pptx')
     Writer.save()
-
+    if save_dstyle:
+        for dstyle in save_dstyle:
+            exec('Writer_'+dstyle+'.save()')
 
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
