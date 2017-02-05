@@ -33,27 +33,47 @@ from pptx.enum.chart import XL_LEGEND_POSITION
 from pptx.enum.chart import XL_LABEL_POSITION
 
 
-def df_to_table(slide,df,left,top,width,height,rownames=False,colnames=True):
+def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
+    '''将pandas数据框添加到slide上，并生成pptx上的表格
+    输入：
+    slide：PPT的一个页面，由pptx.Presentation().slides.add_slide()给定
+    df：需要转换的数据框
+    lef,top: 表格在slide中的位置
+    width,height: 表格在slide中的大小
+    index_names: Bool,是否需要显示行类别的名称
+    columns_names: Bool,是否需要显示列类别的名称
+    返回：
+    返回带表格的slide
+    '''
     df=pd.DataFrame(df)
     rows, cols = df.shape
-    res = slide.shapes.add_table(rows+colnames, cols+rownames, left, top, width, height)
+    res = slide.shapes.add_table(rows+columns_names, cols+index_names, left, top, width, height)
     '''
     for c in range(cols+rownames):
         res.table.columns[c].width = colwidth
     '''
     # Insert the column names
-    if colnames:
+    if columns_names:
         for col_index, col_name in enumerate(list(df.columns)):
-            res.table.cell(0,col_index+rownames).text = '%s'%(col_name)
-    if rownames:
+            res.table.cell(0,col_index+index_names).text = '%s'%(col_name)
+    if index_names:
         for col_index, col_name in enumerate(list(df.index)):
-            res.table.cell(col_index+colnames,0).text = '%s'%(col_name)
+            res.table.cell(col_index+columns_names,0).text = '%s'%(col_name)
     m = df.as_matrix()
     for row in range(rows):
         for col in range(cols):
-            res.table.cell(row+colnames, col+rownames).text = '%s'%(m[row, col])
+            res.table.cell(row+columns_names, col+index_names).text = '%s'%(m[row, col])
 
 def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短的结论'):
+    '''根据给定的数据，在给定的prs上新增一页表格ppt
+    输入：
+    prs: PPT文件接口
+    df: 数据框
+    layouts: [0]为PPT母版顺序，[1]为母版内的版式顺序
+    输出：
+    更新后的prs
+    '''
+    df=pd.DataFrame(df)
     slide_width=prs.slide_width
     slide_height=prs.slide_height
     # 可能需要修改以适应更多的情形
@@ -67,11 +87,21 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     #summary=u'这里是一些简短的结论'
     txBox.text_frame.text=summary
     # 绘制表格
-    left=Emu(0.10*slide_width)
-    top=Emu(0.20*slide_height)
-    width=Emu(0.8*slide_width)
-    height=Emu(0.7*slide_height)
-    df_to_table(slide,df,left,top,width,height,rownames=True)
+    '''添加自适应的表格大小
+    默认最大12*6，width=0.80,height=0.70
+    left=0.1,top=0.25
+
+    '''
+    R,C=df.shape
+    width=max(0.5,min(1,C/6.0))*0.80
+    height=max(0.5,min(1,R/12.0))*0.70
+    left=0.5-width/2
+    top=(1-height)*2/3
+    left=Emu(left*slide_width)
+    top=Emu(top*slide_height)
+    width=Emu(width*slide_width)
+    height=Emu(height*slide_height)
+    df_to_table(slide,df,left,top,width,height,index_names=True)
 
 
 
@@ -112,7 +142,7 @@ def df_to_chartdata(df,datatype,number_format=None):
         return chart_data
 
 def plot_chart(prs,df,chart_type,title=u'我是标题',summary=u'我是简短的结论',\
-footnote=None,chart_format=None,layouts=[0,5]):
+footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     '''
     直接将数据绘制到一张ppt上，且高度定制化
     默认都有图例，且图例在下方
@@ -215,9 +245,8 @@ footnote=None,chart_format=None,layouts=[0,5]):
     cx, cy = Emu(0.85*slide_width), Emu(0.70*slide_height)
     chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0], \
     x, y, cx, cy, chart_data).chart
+
     font_default_size=Pt(10)
-
-
     # 添加图例
     chart.has_legend = True
     chart.legend.font.size=font_default_size
@@ -233,21 +262,48 @@ footnote=None,chart_format=None,layouts=[0,5]):
     except Exception as e:
         unsuc=0
     # 添加数据标签
-    '''
+
     non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER',\
-    'XY_SCATTER_LINES']
+    'XY_SCATTER_LINES','PIE']
+    # 大致检测是否采用百分比
+    if (df.sum()>=80).any() and (df<=100).any().any():
+        number_format1='0.0"%"'
+        number_format2='0"%"'
+    else:
+        number_format1='0.0'
+        number_format2='0'
+
     if chart_type not in non_available_list:
         plot = chart.plots[0]
         plot.has_data_labels = True
         plot.data_labels.font.size = font_default_size
+        plot.data_labels.number_format = number_format1
+        #plot.data_labels.number_format_is_linked=True
         #data_labels = plot.data_labels
-        #data_labels.position = XL_LABEL_POSITION.BEST_FIT
+        #plot.data_labels.position = XL_LABEL_POSITION.BEST_FIT
+        #chart.value_axis.maximum_scale = 1
+        if df.shape[1]==1:
+            chart.value_axis.has_major_gridlines = False
+        else:
+            chart.value_axis.has_major_gridlines = True
+        tick_labels = chart.value_axis.tick_labels
+        tick_labels.number_format = number_format2
+        tick_labels.font.size = font_default_size
+
+    # 修改纵坐标格式
+    '''
+    tick_labels = chart.value_axis.tick_labels
+    tick_labels.number_format = '0"%"'
+    tick_labels.font.bold = True
+    tick_labels.font.size = Pt(10)
     '''
 
     # 自定义format
     if chart_format:
         for k in chart_format:
             exec('chart.'+k+'='+'%s'%(chart_format[k]))
+
+
 
     '''
     if chart_type == 'BAR_TWO_WAY':
@@ -575,7 +631,7 @@ def chi2_test(df,alpha=0.5):
     chi2_data=(chiStats[1] <= alpha,chiStats[1])
     return chi2_data
 
-def rpttable(data,code):
+def table(data,code):
     '''
     单个题目描述统计
     code是data的编码，列数大于1
@@ -633,11 +689,113 @@ def rpttable(data,code):
         t1=None
     return (t,t1)
 
+def crosstab(data_index,data_column,qtype=None,code_index=None,code_column=None):
+    '''适用于问卷数据的交叉统计
+    输入参数：
+    data_index: 因变量，放在行中
+    data_column:自变量，放在列中
+    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的
+    code_index: dict格式，指定data_index的编码等信息
+    code_column: dict格式，指定data_column的编码等信息
+    返回数据：(t,t1)
+    t：默认的百分比表，行是data_index,列是data_column
+    t1：原始频数表，且添加了总体项
+    '''
 
+    # 将Series转为DataFrame格式
+    data_index=pd.DataFrame(data_index)
+    data_column=pd.DataFrame(data_column)
+
+    # 获取行/列变量的题目类型
+    #  默认值
+    if data_index.shape[1]==1:
+        qtype1=u'单选题'
+    else:
+        qtype1=u'多选题'
+    if data_column.shape[1]==1:
+        qtype2=u'单选题'
+    else:
+        qtype2=u'多选题'
+    #  根据参数修正
+    if code_index:
+        qtype1=code_index['qtype']
+        if qtype1 == u'单选题':
+            data_index.replace(code_index['code'],inplace=True)
+        elif qtype1 in [u'多选题',u'排序题']:
+            data_index.rename(columns=code_index['code'],inplace=True)
+        elif qtype1 == u'矩阵单选题':
+            data_index.rename(columns=code_index['code_r'],inplace=True)
+    if code_column:
+        qtype2=code_column['qtype']
+        if qtype2 == u'单选题':
+            data_column.replace(code_column['code'],inplace=True)
+        elif qtype2 in [u'多选题',u'排序题']:
+            data_column.rename(columns=code_column['code'],inplace=True)
+        elif qtype2 == u'矩阵单选题':
+            data_column.rename(columns=code_column['code_r'],inplace=True)
+    if qtype:
+        qtype=list(qtype)
+        if len(qtype)==2:
+            qtype1=qtype[0]
+            qtype2=qtype[1]
+        else:
+            qtype1=qtype[0]
+
+    if qtype1 == u'单选题':
+        data_index=sa_to_ma(data_index)
+        qtype1=u'多选题'
+
+    if qtype2 == u'单选题':
+        data_column=sa_to_ma(data_column)
+        qtype2=u'多选题'
+
+    # 准备工作
+    index_list=list(data_index.columns)
+    columns_list=list(data_column.columns)
+    column_freq=data_column.sum()
+    column_freq[u'总体']=column_freq.sum()
+    R=len(index_list)
+    C=len(columns_list)
+
+    if (qtype1 == u'多选题') and (qtype2 == u'多选题'):
+        data_index.fillna(0,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+
+    elif (qtype1 == u'矩阵单选题') and (qtype2 == u'多选题'):
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t=pd.DataFrame(np.dot(t,np.diag(1/data_column.sum())))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.mean()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+
+
+    elif (qtype1 == u'排序题') and (qtype2 == u'多选题'):
+        topn=int(data_index.max().max())
+        #topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index_list])
+        qsort=dict(zip([i+1 for i in range(topn)],[topn-i for i in range(topn)]))
+        data_index.replace(qsort,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+    else:
+        t=None
+        t1=None
+    return (t,t1)
 
 
 def rptcrosstab(data_index,data_column,code):
-    '''
+    '''[后期会删除，请用crosstab]
     交叉分析：默认data_column是自变量
     data_index:因变量，题目类型等参数有code给出
     code: dict格式，定义data_index的相关信息
@@ -718,8 +876,7 @@ def rptcrosstab(data_index,data_column,code):
 
 
 def contingency(fo,alpha=0.05):
-    '''
-    列联表分析：(观察频数表分析)
+    ''' 列联表分析：(观察频数表分析)
     1、生成TGI指数、TWI指数、CHI指数
     2、独立性检验
     3、当两个变量不显著时，考虑单个之间的显著性
@@ -727,9 +884,9 @@ def contingency(fo,alpha=0.05):
     chi_test: 卡方检验结果，1:显著；0:不显著；-1：期望值不满足条件
     coef: 包含chi2、p值、V相关系数
     log: 记录一些异常情况
-    TGI：
-    TWI：
-    CHI：
+    TGI：fo/fe
+    TWI：fo-fe
+    CHI：sqrt((fo-fe)(fo/fe-1))*sign(fo-fe)
     significant:{
     .'result': 显著性结果[1(显著),0(不显著),-1(fe小于5的过多)]
     .'p-value':
@@ -794,7 +951,7 @@ def contingency(fo,alpha=0.05):
     summary['fit_test']=fit_test
     summary['chi_std']=CHI.unstack().std()
     summary['chi_mean']=CHI.unstack().mean()
-    print('the std of CHI is %.2f'%summary['chi_std'])
+    #print('the std of CHI is %.2f'%summary['chi_std'])
     conclusion=''
     for c in CHI.columns:
         tmp=['%s'%s for s in list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])]
@@ -845,19 +1002,19 @@ total_display=True,max_column_chart=20,save_dstyle=None):
 
     # =================基本数据获取==========================
 
-    # 交叉变量中每个类别的频数分布
-    cross_class_freq=data[cross_class].value_counts()
-    cross_class_freq[u'总体']=cross_class_freq.sum()
-    # 前期统一替换选项编码
+    # 交叉变量中每个类别的频数分布，兵统一替换选项编码
     if code[cross_class]['qtype'] == u'单选题':
         data[cross_class].replace(code[cross_class]['code'],inplace=True)
+        cross_class_freq=data[cross_class].value_counts()
+        cross_class_freq[u'合计']=cross_class_freq.sum()
     elif code[cross_class]['qtype'] == u'多选题':
         data.rename(columns=code[cross_class]['code'],inplace=True)
+        cross_class_freq=data[code[cross_class]['qlist']].sum()
+        cross_class_freq[u'合计']=cross_class_freq.sum()
+
 
     #交叉分析的样本数统一为交叉变量的样本数
-    sample_len=data[cross_class].notnull().sum()
-    cn=data[cross_class].value_counts()
-    cn[u'合计']=cn.sum()
+    sample_len=data[code[cross_class]['qlist']].notnull().T.any().sum()
 
     # ================I/O接口=============================
     prs = Presentation()
@@ -871,7 +1028,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
     summary=summary+'\n'+u'各类别样本量如下：'
-    plot_table(prs,cn,title=title,summary=summary)
+    plot_table(prs,cross_class_freq,title=title,summary=summary)
 
 
     for qq in cross_qlist:
@@ -883,7 +1040,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         # 交叉统计
-        t,t1=rptcrosstab(data[qlist],data[[cross_class]],code=code[qq])
+        t,t1=crosstab(data[qlist],data[code[cross_class]['qlist']],code_index=code[qq])
 
         # =======数据修正==============
         if cross_order:
@@ -905,6 +1062,8 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         summary=cdata['summary']['summary']
         if plt_dstyle:
             plt_data=cdata[plt_dstyle]
+        elif qtype in [u'单选题',u'多选题']:
+            plt_data=t*100
         else:
             plt_data=t.copy()
 
@@ -997,7 +1156,7 @@ significance_test=False, max_column_chart=20):
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
-        t,t1=rpttable(data[qlist],code=code[qq])
+        t,t1=table(data[qlist],code=code[qq])
 
         # =======数据修正==============
         if 'code_order' in code[qq]:
@@ -1025,17 +1184,28 @@ significance_test=False, max_column_chart=20):
 
 
         '''
-        if u'合计' in t.index:
-            t.drop([u'合计'],axis=0,inplace=True)
+        # 数据再加工
+        if qtype in [u'单选题',u'多选题']:
+            plt_data=t*100
+        else:
+            plt_data=t.copy()
+        if u'合计' in plt_data.index:
+            plt_data.drop([u'合计'],axis=0,inplace=True)
         title=qq+': '+qtitle
         summary=u'这里是结论区域.'
         footnote=u'样本N=%d'%sample_len_qq
+        format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
+        'value_axis.tick_labels.font.size':Pt(10),\
+        }
         if len(t)>max_column_chart:
-            plot_chart(prs,t,'BAR_CLUSTERED',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+            footnote=footnote,chart_format=format1)
         elif len(t)>3:
-            plot_chart(prs,t,'COLUMN_CLUSTERED',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
+            footnote=footnote,chart_format=format1)
         else:
-            plot_chart(prs,t,'PIE',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
+            footnote=footnote)
 
 
 
