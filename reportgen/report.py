@@ -19,6 +19,7 @@ pptx.Presentation().slide_width
 import os
 import re
 import sys
+import math
 
 
 
@@ -90,7 +91,6 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     '''添加自适应的表格大小
     默认最大12*6，width=0.80,height=0.70
     left=0.1,top=0.25
-
     '''
     R,C=df.shape
     width=max(0.5,min(1,C/6.0))*0.80
@@ -619,6 +619,13 @@ def sa_to_ma(data):
     return data_ma
 
 
+def binomial_interval(p,n,alpha=0.05):
+    import scipy.stats as stats
+    a=p-stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
+    b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
+    return (a,b)
+    
+
 
 def chi2_test(df,alpha=0.5):
     import scipy.stats as stats
@@ -675,7 +682,9 @@ def table(data,code):
     elif qtype == u'排序题':
         #sample_len=data.notnull().T.any().sum()
         topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
-        qsort=dict(zip([i+1 for i in range(topn)],[topn-i for i in range(topn)]))
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2/(topn+1)/topn for i in range(topn)]))
+        #top1=data.applymap(lambda x:int(x==1))
+        #tt1=top1.sum
         data.replace(qsort,inplace=True)
         t1=data.sum()
         t1.sort_values(ascending=False,inplace=True)
@@ -1023,7 +1032,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
     if save_dstyle:
         for dstyle in save_dstyle:
-            exec('Writer_'+dstyle+'=pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
+            eval('Writer_'+dstyle+'=pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
@@ -1070,7 +1079,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         # 保存指标数据
         if save_dstyle:
             for dstyle in save_dstyle:
-                exec('cdata["'+dstyle+'"].to_excel('+'Writer_'+dstyle+',"'+qq+'")')
+                eval('cdata["'+dstyle+'"].to_excel('+'Writer_'+dstyle+',"'+qq+'")')
 
 
 
@@ -1078,9 +1087,6 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         # ========================【特殊题型处理区】================================
         if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
             title=u'整体满意度'
-
-
-
         continue
         '''
 
@@ -1110,7 +1116,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     Writer.save()
     if save_dstyle:
         for dstyle in save_dstyle:
-            exec('Writer_'+dstyle+'.save()')
+            eval('Writer_'+dstyle+'.save()')
 
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
@@ -1170,7 +1176,6 @@ significance_test=False, max_column_chart=20):
 
         '''显著性分析[暂缺]
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
-
         '''
 
 
@@ -1179,10 +1184,6 @@ significance_test=False, max_column_chart=20):
         # ========================【特殊题型处理区】================================
         if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
             title=u'整体满意度'
-
-
-
-
         '''
         # 数据再加工
         if qtype in [u'单选题',u'多选题']:
@@ -1213,7 +1214,6 @@ significance_test=False, max_column_chart=20):
     '''
     # ==============小结页=====================
     difference=pd.Series(difference,index=total_qlist_0)
-
     '''
 
     # ========================文件生成和导出======================
