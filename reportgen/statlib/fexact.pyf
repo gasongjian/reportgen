@@ -1,0 +1,164 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module prterr__user__routines 
+    interface prterr_user_interface 
+        subroutine f2pystop(icode,mes) ! in :fexact:prterr.f:prterr:unknown_interface
+            intent(callback,hide) f2pystop
+            integer intent(in) :: icode
+            character*(*) intent(in) :: mes
+        end subroutine f2pystop
+    end interface prterr_user_interface
+end python module prterr__user__routines
+python module fexact ! in 
+    interface  ! in :fexact
+        module types ! in :fexact:FEXACT.F90
+            integer, public,parameter,optional :: dp=selected_real_kind(14, 60)
+        end module types
+        module fisher_exact ! in :fexact:FEXACT.F90
+            use types
+            subroutine fexact(nrow,ncol,table,ldtabl,expect,percnt,emin,wkspace,prt,pre) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer intent(in) :: ncol
+                real(kind=8) dimension(:,:),intent(in) :: table
+                integer intent(in) :: ldtabl
+                real(kind=8) intent(in) :: expect
+                real(kind=8) intent(in) :: percnt
+                real(kind=8) intent(in) :: emin
+                integer, optional,intent(in) :: wkspace
+                real(kind=8), intent(out) :: prt
+                real(kind=8), intent(out) :: pre
+            end subroutine fexact
+            subroutine f2xact(nrow,ncol,table,ldtabl,expect,percnt,emin,prt,pre,ldkey,ldstp,ntotal,ncols,nrows) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer intent(in) :: ncol
+                real(kind=8) dimension(:,:),intent(in) :: table
+                integer intent(in) :: ldtabl
+                real(kind=8) intent(in) :: expect
+                real(kind=8) intent(in) :: percnt
+                real(kind=8) intent(in) :: emin
+                real(kind=8) :: prt
+                real(kind=8) :: pre
+                integer intent(in) :: ldkey
+                integer intent(in) :: ldstp
+                integer intent(in) :: ntotal
+                integer intent(in) :: ncols
+                integer intent(in) :: nrows
+            end subroutine f2xact
+            subroutine f3xact(nrow,irow,ncol,icol,dlp,mm,fact,tol) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer dimension(:),intent(in) :: irow
+                integer intent(in) :: ncol
+                integer dimension(:),intent(in) :: icol
+                real(kind=8) :: dlp
+                integer intent(in) :: mm
+                real(kind=8) dimension(1),intent(in) :: fact
+                real(kind=8) intent(in) :: tol
+            end subroutine f3xact
+            subroutine f4xact(nrow,irow,ncol,icol,dsp,fact,tol) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer dimension(:),intent(in) :: irow
+                integer intent(in) :: ncol
+                integer dimension(:),intent(in) :: icol
+                real(kind=8) intent(inout) :: dsp
+                real(kind=8) dimension(1),intent(in) :: fact
+                real(kind=8) intent(in) :: tol
+            end subroutine f4xact
+            subroutine f5xact(pastp,tol,kval,key,ldkey,ipoin,stp,ldstp,ifrq,npoin,nr,nl,ifreq,itop,ipsh) ! in :fexact:FEXACT.F90:fisher_exact
+                real(kind=8) intent(in) :: pastp
+                real(kind=8) intent(in) :: tol
+                integer intent(in) :: kval
+                integer dimension(:) :: key
+                integer intent(in) :: ldkey
+                integer dimension(:) :: ipoin
+                real(kind=8) dimension(:) :: stp
+                integer intent(in) :: ldstp
+                integer dimension(:) :: ifrq
+                integer dimension(:) :: npoin
+                integer dimension(:) :: nr
+                integer dimension(:) :: nl
+                integer intent(in) :: ifreq
+                integer intent(inout) :: itop
+                logical intent(in) :: ipsh
+            end subroutine f5xact
+            subroutine f6xact(nrow,irow,iflag,kyy,key,ldkey,last,ipn) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer dimension(:) :: irow
+                integer :: iflag
+                integer dimension(:),intent(in) :: kyy
+                integer dimension(:),intent(inout) :: key
+                integer intent(in) :: ldkey
+                integer intent(inout) :: last
+                integer :: ipn
+            end subroutine f6xact
+            subroutine f7xact(nrow,imax,idif,k,ks,iflag) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer dimension(:),intent(in) :: imax
+                integer dimension(:),intent(inout) :: idif
+                integer intent(inout) :: k
+                integer intent(inout) :: ks
+                integer :: iflag
+            end subroutine f7xact
+            subroutine f8xact(irow,is,i1,izero,new_bn) ! in :fexact:FEXACT.F90:fisher_exact
+                integer dimension(:),intent(in) :: irow
+                integer intent(in) :: is
+                integer intent(in) :: i1
+                integer intent(in) :: izero
+                integer dimension(:) :: new_bn
+            end subroutine f8xact
+            function f9xact(n,mm,ir,fact) result (fn_val) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: n
+                integer intent(in) :: mm
+                integer dimension(:),intent(in) :: ir
+                real(kind=8) dimension(1),intent(in) :: fact
+                real(kind=8) :: fn_val
+            end function f9xact
+            subroutine f10act(nrow,irow,ncol,icol,val,xmin,fact,nd,ne,m) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: nrow
+                integer dimension(:),intent(in) :: irow
+                integer intent(in) :: ncol
+                integer dimension(:),intent(in) :: icol
+                real(kind=8) :: val
+                logical :: xmin
+                real(kind=8) dimension(1),intent(in) :: fact
+                integer dimension(:) :: nd
+                integer dimension(:) :: ne
+                integer dimension(:) :: m
+            end subroutine f10act
+            subroutine f11act(irow,i1,i2,new_bn) ! in :fexact:FEXACT.F90:fisher_exact
+                integer dimension(:),intent(in) :: irow
+                integer intent(in) :: i1
+                integer intent(in) :: i2
+                integer dimension(:) :: new_bn
+            end subroutine f11act
+            subroutine isort(n,ix) ! in :fexact:FEXACT.F90:fisher_exact
+                integer intent(in) :: n
+                integer dimension(:),intent(inout) :: ix
+            end subroutine isort
+            function gammad(x,p) result (fn_val) ! in :fexact:FEXACT.F90:fisher_exact
+                real(kind=8) intent(in) :: x
+                real(kind=8) intent(in) :: p
+                real(kind=8) :: fn_val
+            end function gammad
+            function alnorm(x,upper) result (fn_val) ! in :fexact:FEXACT.F90:fisher_exact
+                real(kind=8) intent(in) :: x
+                logical intent(in) :: upper
+                real(kind=8) :: fn_val
+            end function alnorm
+            function lngamma(z) result (lanczos) ! in :fexact:FEXACT.F90:fisher_exact
+                real(kind=8) intent(in) :: z
+                real(kind=8) :: lanczos
+            end function lngamma
+        end module fisher_exact
+        subroutine prterr(icode,mes) ! in :fexact:prterr.f
+            use prterr__user__routines
+            integer intent(in) :: icode
+            character*(*) intent(in) :: mes
+            intent(callback) f2pystop
+            external f2pystop
+        end subroutine prterr
+    end interface 
+end python module fexact
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/

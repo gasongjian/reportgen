@@ -624,7 +624,7 @@ def binomial_interval(p,n,alpha=0.05):
     a=p-stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
     b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
     return (a,b)
-    
+
 
 
 def chi2_test(df,alpha=0.5):
@@ -680,19 +680,19 @@ def table(data,code):
         t=t1.copy()
         t=t/sample_len
     elif qtype == u'排序题':
-        #sample_len=data.notnull().T.any().sum()
+        #提供综合统计和TOP1值统计
+        # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
         topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
-        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2/(topn+1)/topn for i in range(topn)]))
-        #top1=data.applymap(lambda x:int(x==1))
-        #tt1=top1.sum
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
+        top1=data.applymap(lambda x:int(x==1))
         data.replace(qsort,inplace=True)
-        t1=data.sum()
-        t1.sort_values(ascending=False,inplace=True)
+        t1=pd.DataFrame()
+        t1['TOP1']=top1.sum()
+        t1[u'综合']=data.sum()
+        t1.sort_values(by=u'综合',ascending=False,inplace=True)
         t1.rename(index=code['code'],inplace=True)
         t=t1.copy()
         t=t/sample_len
-        t=pd.DataFrame(t)
-        t1=pd.DataFrame(t1)
     else:
         t=None
         t1=None
@@ -788,7 +788,7 @@ def crosstab(data_index,data_column,qtype=None,code_index=None,code_column=None)
     elif (qtype1 == u'排序题') and (qtype2 == u'多选题'):
         topn=int(data_index.max().max())
         #topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index_list])
-        qsort=dict(zip([i+1 for i in range(topn)],[topn-i for i in range(topn)]))
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
         data_index.replace(qsort,inplace=True)
         t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
         t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
@@ -941,6 +941,7 @@ def contingency(fo,alpha=0.05):
     threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
     if (fo<=5).sum().sum()>=threshold:
         significant['result']=-1
+        # https://mrnoutahi.com/2016/01/03/Fisher-exac-test-for-mxn-table/
     else:
         chiStats = stats.chi2_contingency(observed=fo)
         significant['pvalue']=chiStats[1]
