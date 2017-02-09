@@ -32,6 +32,7 @@ from pptx.enum.chart import XL_CHART_TYPE
 from pptx.util import Inches, Pt, Emu
 from pptx.enum.chart import XL_LEGEND_POSITION
 from pptx.enum.chart import XL_LABEL_POSITION
+from pptx.dml.color import RGBColor
 
 
 def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
@@ -231,12 +232,18 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     width,height = Emu(0.7*slide_width), Emu(0.1*slide_height)
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
+    try:
+        txBox.text_frame.fit_text(max_size=12)
+    except:
+        print(u'can not fit the fontsize')
+
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
-        left,top = Emu(0.05*slide_width), Emu(0.90*slide_height)
+        left,top = Emu(0.02*slide_width), Emu(0.95*slide_height)
         width,height = Emu(0.70*slide_width), Emu(0.05*slide_height)
         txBox = slide.shapes.add_textbox(left, top, width, height)
         txBox.text_frame.text=footnote
+        txBox.text_frame.fit_text(max_size=8)
 
 
 
@@ -271,7 +278,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         number_format2='0"%"'
     else:
         number_format1='0.0'
-        number_format2='0'
+        number_format2='0.0'
 
     if chart_type not in non_available_list:
         plot = chart.plots[0]
@@ -296,6 +303,12 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     tick_labels.number_format = '0"%"'
     tick_labels.font.bold = True
     tick_labels.font.size = Pt(10)
+    '''
+
+    # 填充系列的颜色
+    ''' 最好的方法还是修改母版文件中的主题颜色，这里只提供方法
+    if df.shape[1]==1:
+        chart.series[0].fill()
     '''
 
     # 自定义format
@@ -631,12 +644,30 @@ def chi2_test(df,alpha=0.5):
     import scipy.stats as stats
     df=pd.DataFrame(df)
     chiStats = stats.chi2_contingency(observed=df)
-    alpha = 0.05
     #critical_value = stats.chi2.ppf(q=1-alpha,df=chiStats[2])
     #observed_chi_val = chiStats[0]
     # p<alpha 等价于 observed_chi_val>critical_value
     chi2_data=(chiStats[1] <= alpha,chiStats[1])
     return chi2_data
+
+def fisher_exact(fo,alpha=0.05):
+    '''fisher_exact 显著性检验函数
+    此处采用的是调用R的解决方案，需要安装包 pyper
+    python解决方案参见
+    https://mrnoutahi.com/2016/01/03/Fisher-exac-test-for-mxn-table/
+    但还有些问题，所以没用.
+    '''
+    import pyper as pr
+    r=pr.R(use_pandas=True,use_numpy=True)
+    r.assign('fo',fo)
+    r("b<-fisher.test(fo)")
+    pdata=r['b']
+    p_value=pdata['p.value']
+    if p_value<alpha:
+        result=1
+    else:
+        result=0
+    return (result,p_value)
 
 def table(data,code):
     '''
@@ -753,7 +784,7 @@ def crosstab(data_index,data_column,qtype=None,code_index=None,code_column=None)
     if qtype1 == u'单选题':
         data_index=sa_to_ma(data_index)
         qtype1=u'多选题'
-
+    # 将单选题变为多选题
     if qtype2 == u'单选题':
         data_column=sa_to_ma(data_column)
         qtype2=u'多选题'
@@ -761,7 +792,9 @@ def crosstab(data_index,data_column,qtype=None,code_index=None,code_column=None)
     # 准备工作
     index_list=list(data_index.columns)
     columns_list=list(data_column.columns)
-    column_freq=data_column.sum()
+    # 次数频数表为同时选择
+    column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
+    #column_freq=data_column.sum()
     column_freq[u'总体']=column_freq.sum()
     R=len(index_list)
     C=len(columns_list)
@@ -920,13 +953,13 @@ def contingency(fo,alpha=0.05):
     if u'合计' in fo.index:
         fo.drop([u'合计'],axis=0,inplace=True)
     fe=fo.copy()
-    N=fe.sum().sum()
+    N=fo.sum().sum()
     for i in fe.index:
         for j in fe.columns:
-            fe.loc[i,j]=fe.loc[i,:].sum()*fe.loc[:,j].sum()/N
+            fe.loc[i,j]=fe.loc[i,:].sum()*fe.loc[:,j].sum()/float(N)
     TGI=fo/fe
     TWI=fo-fe
-    CHI=np.sqrt((fo-fe)*(fo/fe-1))*(TWI.applymap(lambda x: int(x>0))*2-1)
+    CHI=np.sqrt((fo-fe)**2/fe)*(TWI.applymap(lambda x: int(x>0))*2-1)
     PCHI=1/(1+np.exp(-1*CHI))
     cdata['FO']=fo
     cdata['FE']=fe
@@ -939,14 +972,25 @@ def contingency(fo,alpha=0.05):
     significant={}
     significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
     threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
-    if (fo<=5).sum().sum()>=threshold:
+    # 去除行变量中行为0的列
+    fo=fo[fo.sum(axis=1)>5]
+    if fo.shape[0]<=1:
+        significant['result']=-2
+        significant['method']='fo not frequency'
+    elif ((fo<=5).sum().sum()>=threshold):
         significant['result']=-1
-        # https://mrnoutahi.com/2016/01/03/Fisher-exac-test-for-mxn-table/
+        significant['method']='need fisher_exact'
+        '''fisher_exact运行所需时间极其的长，此处还是不作检验
+        fisher_r,fisher_p=fisher_exact(fo)
+        significant['pvalue']=fisher_p
+        significant['method']='fisher_exact'
+        significant['result']=fisher_r
+        '''
     else:
         chiStats = stats.chi2_contingency(observed=fo)
         significant['pvalue']=chiStats[1]
         significant['method']='chi-test'
-        significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
+        #significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
         if chiStats[1] <= alpha:
             significant['result']=1
         else:
@@ -970,6 +1014,8 @@ def contingency(fo,alpha=0.05):
             conclusion=conclusion+tmp1+'; \n'
     #conclusion=';'.join([u'{col}更喜欢{s}'.format(col=c,s=','.join(['%s'%s for s in \
     #list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])])) for c in CHI.columns])
+    if not conclusion:
+        conclusion=u'没有找到显著的结论'
     summary['summary']=conclusion
     cdata['summary']=summary
     return cdata
@@ -1011,49 +1057,73 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         difference[cross_class]=-2 #-2就代表了是交叉题目
 
     # =================基本数据获取==========================
-
-    # 交叉变量中每个类别的频数分布，兵统一替换选项编码
-    if code[cross_class]['qtype'] == u'单选题':
-        data[cross_class].replace(code[cross_class]['code'],inplace=True)
-        cross_class_freq=data[cross_class].value_counts()
-        cross_class_freq[u'合计']=cross_class_freq.sum()
-    elif code[cross_class]['qtype'] == u'多选题':
-        data.rename(columns=code[cross_class]['code'],inplace=True)
-        cross_class_freq=data[code[cross_class]['qlist']].sum()
-        cross_class_freq[u'合计']=cross_class_freq.sum()
-
-
     #交叉分析的样本数统一为交叉变量的样本数
     sample_len=data[code[cross_class]['qlist']].notnull().T.any().sum()
+
+
+    # 交叉变量中每个类别的频数分布.
+    if code[cross_class]['qtype'] == u'单选题':
+        #data[cross_class].replace(code[cross_class]['code'],inplace=True)
+        cross_class_freq=data[cross_class].value_counts()
+        cross_class_freq[u'合计']=cross_class_freq.sum()
+        cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
+        #cross_columns_qlist=code[cross_class]['qlist']
+    elif code[cross_class]['qtype'] == u'多选题':
+        cross_class_freq=data[code[cross_class]['qlist']].sum()
+        cross_class_freq[u'合计']=cross_class_freq.sum()
+        cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
+        #data.rename(columns=code[cross_class]['code'],inplace=True)
+        #cross_columns_qlist=[code[cross_class]['code'][k] for k in code[cross_class]['qlist']]
+
+
+
 
     # ================I/O接口=============================
     prs = Presentation()
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
+    # 生成数据接口(因为exec&eval)
     Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
+    Writer_save={}
+    names=locals()
     if save_dstyle:
         for dstyle in save_dstyle:
-            eval('Writer_'+dstyle+'=pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
+            Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
+            #locals()[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
+            #print(dstyle in locals().keys())
+    #Writer_TWI=pd.ExcelWriter('.\\out\\'+filename+u'_TWI.xlsx')
+    #Writer_TGI=pd.ExcelWriter('.\\out\\'+filename+u'_TGI.xlsx')
+    #Writer_CHI=pd.ExcelWriter('.\\out\\'+filename+u'_CHI.xlsx')
+    '''
+    if save_dstyle:
+        for dstyle in save_dstyle:
+            eval('Writer_'+dstyle+' = pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
+    '''
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
     summary=summary+'\n'+u'各类别样本量如下：'
     plot_table(prs,cross_class_freq,title=title,summary=summary)
-
-
+    data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
+        data_index=data[qlist]
+
+        sample_len=data_column.iloc[list(data_index.notnull().T.any()),:].notnull().T.any().sum()
         summary=None
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         # 交叉统计
-        t,t1=crosstab(data[qlist],data[code[cross_class]['qlist']],code_index=code[qq])
+        t,t1=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+
 
         # =======数据修正==============
         if cross_order:
+            if u'总体' not in cross_order:
+                cross_order=cross_order+[u'总体']
             cross_order=[q for q in cross_order if q in t.columns]
             t=pd.DataFrame(t,columns=cross_order)
             t1=pd.DataFrame(t1,columns=cross_order)
@@ -1076,13 +1146,18 @@ total_display=True,max_column_chart=20,save_dstyle=None):
             plt_data=t*100
         else:
             plt_data=t.copy()
-
+        if save_dstyle:
+            for dstyle in save_dstyle:
+                cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,float_format='%.2f')
+        #cdata['TWI'].to_excel(Writer_TWI,qq)
+        #cdata['TGI'].to_excel(Writer_TGI,qq)
+        #cdata['CHI'].to_excel(Writer_CHI,qq)
         # 保存指标数据
+        '''
         if save_dstyle:
             for dstyle in save_dstyle:
                 eval('cdata["'+dstyle+'"].to_excel('+'Writer_'+dstyle+',"'+qq+'")')
-
-
+        '''
 
         '''
         # ========================【特殊题型处理区】================================
@@ -1090,7 +1165,6 @@ total_display=True,max_column_chart=20,save_dstyle=None):
             title=u'整体满意度'
         continue
         '''
-
         # 绘制PPT
         title=qq+': '+qtitle
         if not summary:
@@ -1117,8 +1191,15 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     Writer.save()
     if save_dstyle:
         for dstyle in save_dstyle:
-            eval('Writer_'+dstyle+'.save()')
-
+            Writer_save[u'Writer_'+dstyle].save()
+    #Writer_CHI.save()
+    '''
+    if save_dstyle:
+        if u'TGI' in save_dstyle:
+            Writer_TGI.save()
+        elif u'TWI' in save_dstyle:
+            Writer_TWI.save()
+    '''
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
 significance_test=False, max_column_chart=20):
