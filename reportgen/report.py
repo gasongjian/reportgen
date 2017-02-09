@@ -236,7 +236,11 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         txBox.text_frame.fit_text(max_size=12)
     except:
         print(u'can not fit the fontsize')
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> origin/master
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
         left,top = Emu(0.02*slide_width), Emu(0.95*slide_height)
@@ -972,12 +976,16 @@ def contingency(fo,alpha=0.05):
     significant={}
     significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
     threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
+<<<<<<< HEAD
     # 去除行变量中行为0的列
     fo=fo[fo.sum(axis=1)>5]
     if fo.shape[0]<=1:
         significant['result']=-2
         significant['method']='fo not frequency'
     elif ((fo<=5).sum().sum()>=threshold):
+=======
+    if (np.any(fo==0)) or ((fo<=5).sum().sum()>=threshold):
+>>>>>>> origin/master
         significant['result']=-1
         significant['method']='need fisher_exact'
         '''fisher_exact运行所需时间极其的长，此处还是不作检验
@@ -1059,8 +1067,13 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     # =================基本数据获取==========================
     #交叉分析的样本数统一为交叉变量的样本数
     sample_len=data[code[cross_class]['qlist']].notnull().T.any().sum()
+<<<<<<< HEAD
 
 
+=======
+    
+    
+>>>>>>> origin/master
     # 交叉变量中每个类别的频数分布.
     if code[cross_class]['qtype'] == u'单选题':
         #data[cross_class].replace(code[cross_class]['code'],inplace=True)
@@ -1068,7 +1081,11 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         cross_class_freq[u'合计']=cross_class_freq.sum()
         cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=code[cross_class]['qlist']
+<<<<<<< HEAD
     elif code[cross_class]['qtype'] == u'多选题':
+=======
+    elif code[cross_class]['qtype'] == u'多选题':      
+>>>>>>> origin/master
         cross_class_freq=data[code[cross_class]['qlist']].sum()
         cross_class_freq[u'合计']=cross_class_freq.sum()
         cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
@@ -1084,6 +1101,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         os.mkdir('.\\out')
     # 生成数据接口(因为exec&eval)
     Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
+<<<<<<< HEAD
     Writer_save={}
     names=locals()
     if save_dstyle:
@@ -1094,6 +1112,11 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     #Writer_TWI=pd.ExcelWriter('.\\out\\'+filename+u'_TWI.xlsx')
     #Writer_TGI=pd.ExcelWriter('.\\out\\'+filename+u'_TGI.xlsx')
     #Writer_CHI=pd.ExcelWriter('.\\out\\'+filename+u'_CHI.xlsx')
+=======
+    Writer_TWI=pd.ExcelWriter('.\\out\\'+filename+u'_TWI.xlsx')
+    Writer_TGI=pd.ExcelWriter('.\\out\\'+filename+u'_TGI.xlsx')
+    Writer_CHI=pd.ExcelWriter('.\\out\\'+filename+u'_CHI.xlsx')
+>>>>>>> origin/master
     '''
     if save_dstyle:
         for dstyle in save_dstyle:
@@ -1107,11 +1130,16 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
         data_index=data[qlist]
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> origin/master
         sample_len=data_column.iloc[list(data_index.notnull().T.any()),:].notnull().T.any().sum()
         summary=None
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
@@ -1146,12 +1174,18 @@ total_display=True,max_column_chart=20,save_dstyle=None):
             plt_data=t*100
         else:
             plt_data=t.copy()
+<<<<<<< HEAD
         if save_dstyle:
             for dstyle in save_dstyle:
                 cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,float_format='%.2f')
         #cdata['TWI'].to_excel(Writer_TWI,qq)
         #cdata['TGI'].to_excel(Writer_TGI,qq)
         #cdata['CHI'].to_excel(Writer_CHI,qq)
+=======
+        cdata['TWI'].to_excel(Writer_TWI,qq)
+        cdata['TGI'].to_excel(Writer_TGI,qq)
+        cdata['CHI'].to_excel(Writer_CHI,qq)
+>>>>>>> origin/master
         # 保存指标数据
         '''
         if save_dstyle:
@@ -1189,17 +1223,24 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
     prs.save('.\\out\\'+filename+u'.pptx')
     Writer.save()
+    Writer_CHI.save()
     if save_dstyle:
+<<<<<<< HEAD
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle].save()
     #Writer_CHI.save()
     '''
     if save_dstyle:
+=======
+>>>>>>> origin/master
         if u'TGI' in save_dstyle:
             Writer_TGI.save()
         elif u'TWI' in save_dstyle:
             Writer_TWI.save()
+<<<<<<< HEAD
     '''
+=======
+>>>>>>> origin/master
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
 significance_test=False, max_column_chart=20):
