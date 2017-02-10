@@ -426,7 +426,7 @@ def to_code(code,savename='code.xlsx',method='xlsx'):
     if sys.version>'3':
         tmp.to_excel(savename,index=False,header=False)
     else:
-        tmp.to_csv(savename,index=False,header=False)
+        tmp.to_csv(savename,index=False,header=False,encoding='utf-8')
 
 
 def wenjuanwang(filepath='.\\data'):
