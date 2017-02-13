@@ -243,7 +243,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         width,height = Emu(0.70*slide_width), Emu(0.05*slide_height)
         txBox = slide.shapes.add_textbox(left, top, width, height)
         txBox.text_frame.text=footnote
-        txBox.text_frame.fit_text(max_size=8)
+        txBox.text_frame.fit_text(max_size=10)
 
 
 
@@ -255,10 +255,11 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
 
     font_default_size=Pt(10)
     # 添加图例
-    chart.has_legend = True
-    chart.legend.font.size=font_default_size
-    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
-    chart.legend.include_in_layout = False
+    if (df.shape[1]>1) or (chart_type=='PIE'):
+        chart.has_legend = True
+        chart.legend.font.size=font_default_size
+        chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+        chart.legend.include_in_layout = False
 
     try:
         chart.category_axis.tick_labels.font.size=font_default_size
@@ -274,13 +275,15 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     'XY_SCATTER_LINES','PIE']
     # 大致检测是否采用百分比
     if (df.sum()>=80).any() and (df<=100).any().any():
+        # 数据条的数据标签格式
         number_format1='0.0"%"'
+        # 坐标轴的数据标签格式
         number_format2='0"%"'
     else:
-        number_format1='0.0'
+        number_format1='0.00'
         number_format2='0.0'
 
-    if chart_type not in non_available_list:
+    if (chart_type not in non_available_list) or (chart_type == 'PIE'):
         plot = chart.plots[0]
         plot.has_data_labels = True
         plot.data_labels.font.size = font_default_size
@@ -288,6 +291,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         #plot.data_labels.number_format_is_linked=True
         #data_labels = plot.data_labels
         #plot.data_labels.position = XL_LABEL_POSITION.BEST_FIT
+    if (chart_type not in non_available_list):
         #chart.value_axis.maximum_scale = 1
         if df.shape[1]==1:
             chart.value_axis.has_major_gridlines = False
@@ -340,6 +344,17 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox.text_frame.text=summary
 
 def read_code(filename):
+    '''读取code编码文件并输出为字典格式
+    1、支持json格式
+    2、支持本包规定的xlsx格式
+    see alse to_code
+
+    '''
+    file_type=os.path.splitext(filename)[1][1:]
+    if file_type == 'json':
+        import json
+        code=json.load(filename)
+        return code
     d=pd.read_excel(filename,header=None)
     d.replace({np.nan:'NULL'},inplace=True)
     d=d.as_matrix()
@@ -361,7 +376,7 @@ def read_code(filename):
             if ind.any():
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
+                j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
             code[key][tmp]=dict(zip(tmp1,tmp2))
@@ -387,9 +402,16 @@ def read_code(filename):
             code[key][tmp]=d[i,1]
     return code
 
-def to_code(code,savename='code.xlsx',method='xlsx'):
-    method=method.lower()
-    if method != 'xlsx':
+def to_code(code,savename='code.xlsx'):
+    '''code本地输出
+    1、输出为json格式，根据文件名自动识别
+    2、输出为Excel格式
+    see also read_code
+    '''
+    save_type=os.path.splitext(savename)[1][1:]
+    if save_type == 'json':
+        code=pd.DataFrame(code)
+        code.to_json(savename,force_ascii=False)
         return
     tmp=pd.DataFrame(columns=['name','value1','value2'])
     i=0
@@ -429,7 +451,30 @@ def to_code(code,savename='code.xlsx',method='xlsx'):
         tmp.to_csv(savename,index=False,header=False,encoding='utf-8')
 
 
+'''问卷数据导入和编码
+对每一个题目的情形进行编码：题目默认按照Q1、Q2等给出
+Qn.content: 题目内容
+Qn.qtype: 题目类型，包含:单选题、多选题、填空题、排序题、矩阵单选题等
+Qn.qlist: 题目列表，例如多选题对应着很多小题目
+Qn.code: 题目选项编码
+Qn.code_r: 题目对应的编码(矩阵题目专有)
+Qn.code_order: 题目类别的顺序，用于PPT报告的生成
+Qn.name: 特殊类型，包含：城市题、NPS题等
+'''
+
 def wenjuanwang(filepath='.\\data'):
+    '''问卷网数据导入和编码
+
+    输入：
+    filepath:
+        列表，[0]为按文本数据路径，[1]为按序号文本，[2]为编码文件
+        文件夹路径，函数会自动在文件夹下搜寻相关数据
+
+    输出：
+    (data,code):
+        data为按序号的数据，题目都替换成了Q_n
+        code为数据编码，可利用函数to_code()导出为json格式或者Excel格式数据
+    '''
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
@@ -446,16 +491,6 @@ def wenjuanwang(filepath='.\\data'):
     d2=pd.read_csv(filename2,encoding='gbk')
     d3=pd.read_csv(filename3,encoding='gbk',header=None,na_filter=False)
     d3=d3.as_matrix()
-
-    '''
-    对每一个题目的情形进行编码：题目默认按照Q1、Q2等给出
-    Qn.content: 题目内容
-    Qn.qtype: 题目类型，包含:单选题、多选题、填空题、排序题、矩阵单选题等
-    Qn.qlist: 题目列表，例如多选题对应着很多小题目
-    Qn.code: 题目选项编码
-    Qn.code_r: 下题目对应的编码(矩阵题目专有)
-    Qn.qtype2: 特殊类型，包含：城市题、NPS题等
-    '''
     code={}
     for i in range(len(d3)):
         if d3[i,0]:
@@ -493,13 +528,37 @@ def wenjuanwang(filepath='.\\data'):
 
 
 def wenjuanxing(filepath='.\\data',headlen=6):
+    '''问卷星数据导入和编码
+
+    输入：
+    filepath:
+        列表，[0]为按文本数据路径，[1]为按序号文本
+        文件夹路径，函数会自动在文件夹下搜寻相关数据，优先为\d+_\d+_0.xls和\d+_\d+_2.xls
+    headlen: 问卷星数据基础信息的列数
+
+    输出：
+    (data,code):
+        data为按序号的数据，题目都替换成了Q_n
+        code为数据编码，可利用函数to_code()导出为json格式或者Excel格式数据
+    '''
     #headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
     elif os.path.isdir(filepath):
-        filename1=os.path.join(filepath,'All_Data_Readable.xls')
-        filename2=os.path.join(filepath,'All_Data_Original.xls')
+        filelist=os.listdir(filepath)
+        if ('All_Data_Readable.xls' in filelist) and ('All_Data_Original.xls' in filelist):
+            filename1='All_Data_Readable.xls'
+            filename2='All_Data_Original.xls'
+        for f in filelist:
+            s1=re.findall('\d+_\d+_0.xls',f)
+            s2=re.findall('\d+_\d+_2.xls',f)
+            if s1:
+                filename1=s1[0]
+            if s2:
+                filename2=s2[0]
+        filename1=os.path.join(filepath,filename1)
+        filename2=os.path.join(filepath,filename2)
     else:
         print('can not dection the filepath!')
 
@@ -618,6 +677,14 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 del  code[current_name]['code'][key]
     return (d2,code)
 
+## ===========================================================
+#
+#
+#                     数据分析和输出                          #
+#
+#
+## ==========================================================
+
 def sa_to_ma(data):
     '''单选题数据转换成多选题数据
     data是单选题数据, 要求非有效列别为nan
@@ -625,6 +692,11 @@ def sa_to_ma(data):
     if isinstance(data,pd.core.frame.DataFrame):
         data=data[data.columns[0]]
     categorys=sorted(data[data.notnull()].unique())
+    categorys=data[data.notnull()].unique()
+    try:
+        categorys=sorted(categorys)
+    except:
+        print('sa_to_ma function::cannot sorted')
     data_ma=pd.DataFrame(index=data.index,columns=categorys)
     for c in categorys:
         data_ma[c]=data.map(lambda x : int(x==c))
@@ -691,6 +763,8 @@ def table(data,code):
         t1[u'合计']=t1.sum()
         t.rename(index=code['code'],inplace=True)
         t1.rename(index=code['code'],inplace=True)
+        t.rename(u'占比',inplace=True)
+        t1.rename(u'频数',inplace=True)
         t=pd.DataFrame(t)
         t1=pd.DataFrame(t1)
     elif qtype == u'多选题':
@@ -700,6 +774,8 @@ def table(data,code):
         t1.rename(index=code['code'],inplace=True)
         t=t1.copy()
         t=t/sample_len
+        t.rename(u'占比',inplace=True)
+        t1.rename(u'频数',inplace=True)
         t=pd.DataFrame(t)
         t1=pd.DataFrame(t1)
     elif qtype == u'矩阵单选题':
@@ -973,13 +1049,13 @@ def contingency(fo,alpha=0.05):
     significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
     threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
     # 去除行变量中行为0的列
-    fo=fo[fo.sum(axis=1)>5]
+    fo=fo[fo.sum(axis=1)>10]
     if fo.shape[0]<=1:
         significant['result']=-2
         significant['method']='fo not frequency'
-    elif ((fo<=5).sum().sum()>=threshold):
-        significant['result']=-1
-        significant['method']='need fisher_exact'
+    #elif ((fo<=5).sum().sum()>=threshold):
+        #significant['result']=-1
+        #significant['method']='need fisher_exact'
         '''fisher_exact运行所需时间极其的长，此处还是不作检验
         fisher_r,fisher_p=fisher_exact(fo)
         significant['pvalue']=fisher_p
@@ -1025,7 +1101,7 @@ def contingency(fo,alpha=0.05):
 
 def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
 delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
-total_display=True,max_column_chart=20,save_dstyle=None):
+total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
     '''使用帮助
     data: 问卷数据，包含交叉变量和所有的因变量
@@ -1040,6 +1116,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     significance_test: 输出显著性校验结果，默认无
     total_display: PPT绘制图表中是否显示总体情况
     max_column_chart: 列联表的列数，小于则用柱状图，大于则用条形图
+    template: PPT模板信息，{'path': 'layouts':}缺省用自带的。
     '''
     # ===================参数预处理=======================
     if plt_dstyle:
@@ -1079,7 +1156,12 @@ total_display=True,max_column_chart=20,save_dstyle=None):
 
 
     # ================I/O接口=============================
-    prs = Presentation()
+    if template:
+        prs=Presentation(template['path'])
+        layouts=template['layouts']
+    else:
+        prs = Presentation()
+        layouts=[0,5]
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     # 生成数据接口(因为exec&eval)
@@ -1103,7 +1185,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
     summary=summary+'\n'+u'各类别样本量如下：'
-    plot_table(prs,cross_class_freq,title=title,summary=summary)
+    plot_table(prs,cross_class_freq,title=title,summary=summary,layouts=layouts)
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
@@ -1135,7 +1217,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
-        t2.to_excel(Writer,qq)
+        t2.to_excel(Writer,qq,index_label=qq,float_format='%.2f')
 
         #列联表分析
         cdata=contingency(t1,alpha=0.05)
@@ -1146,9 +1228,11 @@ total_display=True,max_column_chart=20,save_dstyle=None):
             plt_data=t*100
         else:
             plt_data=t.copy()
+
+        # 保存各个指标的数据
         if save_dstyle:
             for dstyle in save_dstyle:
-                cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,float_format='%.2f')
+                cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
         #cdata['TWI'].to_excel(Writer_TWI,qq)
         #cdata['TGI'].to_excel(Writer_TGI,qq)
         #cdata['CHI'].to_excel(Writer_CHI,qq)
@@ -1169,13 +1253,15 @@ total_display=True,max_column_chart=20,save_dstyle=None):
         title=qq+': '+qtitle
         if not summary:
             summary=u'这里是结论区域.'
-        footnote=u'显著性检验结果为{result},样本N={sample_len}'.format(result=cdata['significant']['result'],sample_len=sample_len)
+        footnote=u'显著性检验结果为{result},数据来源于{qq},样本N={sample_len}'.format(result=cdata['significant']['result'],qq=qq,sample_len=sample_len)
         if (not total_display) and (u'总体' in plt_data.columns):
             plt_data.drop([u'总体'],axis=1,inplace=True)
         if len(plt_data)>max_column_chart:
-            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+            footnote=footnote,layouts=layouts)
         else:
-            plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,footnote=footnote)
+            plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
+            footnote=footnote,layouts=layouts)
 
 
 
@@ -1202,7 +1288,7 @@ total_display=True,max_column_chart=20,save_dstyle=None):
     '''
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
-significance_test=False, max_column_chart=20):
+significance_test=False, max_column_chart=20,template=None):
 
     # ===================参数预处理=======================
     if not summary_qlist:
@@ -1222,14 +1308,19 @@ significance_test=False, max_column_chart=20):
     sample_len=len(data)
 
     # ================I/O接口=============================
-    prs = Presentation()
+    if template:
+        prs=Presentation(template['path'])
+        layouts=template['layouts']
+    else:
+        prs = Presentation()
+        layouts=[0,5]
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'有效样本为%d'%sample_len
-    plot_textbox(prs,title=title,summary=summary)
+    plot_textbox(prs,title=title,summary=summary,layouts=layouts)
 
 
     for qq in summary_qlist:
@@ -1254,7 +1345,7 @@ significance_test=False, max_column_chart=20):
         t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
-        t2.to_excel(Writer,'%s(%d)'%(qq,sample_len_qq))
+        t2.to_excel(Writer,qq,index_label=qq,float_format='%.2f')
 
         '''显著性分析[暂缺]
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
@@ -1276,19 +1367,19 @@ significance_test=False, max_column_chart=20):
             plt_data.drop([u'合计'],axis=0,inplace=True)
         title=qq+': '+qtitle
         summary=u'这里是结论区域.'
-        footnote=u'样本N=%d'%sample_len_qq
+        footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
         }
         if len(t)>max_column_chart:
             plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
-            footnote=footnote,chart_format=format1)
+            footnote=footnote,chart_format=format1,layouts=layouts)
         elif len(t)>3:
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
-            footnote=footnote,chart_format=format1)
+            footnote=footnote,chart_format=format1,layouts=layouts)
         else:
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
-            footnote=footnote)
+            footnote=footnote,layouts=layouts)
 
 
 
