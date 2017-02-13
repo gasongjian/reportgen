@@ -710,12 +710,25 @@ def binomial_interval(p,n,alpha=0.05):
     b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
     return (a,b)
 
-
-
-def chi2_test(df,alpha=0.5):
+def gof_test(fo,fe,alpha=0.05):
     import scipy.stats as stats
-    df=pd.DataFrame(df)
-    chiStats = stats.chi2_contingency(observed=df)
+    fo=np.array(fo).flatten()
+    fe=np.array(fe).flatten()
+    C=len(fo)
+    chi_value=(fo-fe)**2/fe
+    chi_value=chi_value.sum()
+    chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
+    if chi_value>chi_value_fit:
+        result=1
+    else:
+        result=0
+    return result
+
+
+def chi2_test(fo,alpha=0.05):
+    import scipy.stats as stats
+    fo=pd.DataFrame(fo)
+    chiStats = stats.chi2_contingency(observed=fo)
     #critical_value = stats.chi2.ppf(q=1-alpha,df=chiStats[2])
     #observed_chi_val = chiStats[0]
     # p<alpha 等价于 observed_chi_val>critical_value
@@ -805,7 +818,7 @@ def table(data,code):
         t1=None
     return (t,t1)
 
-def crosstab(data_index,data_column,qtype=None,code_index=None,code_column=None):
+def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
     '''适用于问卷数据的交叉统计
     输入参数：
     data_index: 因变量，放在行中
@@ -1050,7 +1063,7 @@ def contingency(fo,alpha=0.05):
     threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
     # 去除行变量中行为0的列
     fo=fo[fo.sum(axis=1)>10]
-    if fo.shape[0]<=1:
+    if (fo.shape[0]<=1) or (np.any(fo.sum()==0)) or (np.any(fo.sum(axis=1)==0)):
         significant['result']=-2
         significant['method']='fo not frequency'
     #elif ((fo<=5).sum().sum()>=threshold):
@@ -1063,12 +1076,17 @@ def contingency(fo,alpha=0.05):
         significant['result']=fisher_r
         '''
     else:
-        chiStats = stats.chi2_contingency(observed=fo)
+        try:
+            chiStats = stats.chi2_contingency(observed=fo)
+        except:
+            chiStats=(1,np.nan)
         significant['pvalue']=chiStats[1]
         significant['method']='chi-test'
         #significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
         if chiStats[1] <= alpha:
             significant['result']=1
+        elif np.isnan(chiStats[1]):
+            significant['result']=-1
         else:
             significant['result']=0
     cdata['significant']=significant
@@ -1101,7 +1119,8 @@ def contingency(fo,alpha=0.05):
 
 def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
 delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
-total_display=True,max_column_chart=20,save_dstyle=None,template=None):
+reverse_display=False,total_display=True,max_column_chart=20,save_dstyle=None,\
+template=None):
 
     '''使用帮助
     data: 问卷数据，包含交叉变量和所有的因变量
@@ -1151,6 +1170,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
         #data.rename(columns=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=[code[cross_class]['code'][k] for k in code[cross_class]['qlist']]
+    elif code[cross_class]['qtype'] == u'排序题':
+        tmp,tmp1=table(data[code[cross_class]['qlist']],code[cross_class])
+        cross_class_freq=tmp1[u'综合']
+        cross_class_freq[u'合计']=cross_class_freq.sum()
+
 
 
 
@@ -1167,7 +1191,6 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     # 生成数据接口(因为exec&eval)
     Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
     Writer_save={}
-    names=locals()
     if save_dstyle:
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
@@ -1199,19 +1222,32 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         # 交叉统计
-        t,t1=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+        if reverse_display:
+            t,t1=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
+        else:
+            t,t1=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+
+        if t is None:
+            continue
 
 
         # =======数据修正==============
-        if cross_order:
+        if cross_order and (not reverse_display):
             if u'总体' not in cross_order:
                 cross_order=cross_order+[u'总体']
             cross_order=[q for q in cross_order if q in t.columns]
             t=pd.DataFrame(t,columns=cross_order)
             t1=pd.DataFrame(t1,columns=cross_order)
         if 'code_order' in code[qq]:
-            t=pd.DataFrame(t,index=code[qq]['code_order'])
-            t1=pd.DataFrame(t1,index=code[qq]['code_order'])
+            code_order=code[qq]['code_order']
+            if reverse_display:
+                if u'总体' in t1.columns:
+                    code_order=code_order+[u'总体']
+                t=pd.DataFrame(t,columns=code_order)
+                t1=pd.DataFrame(t1,columns=code_order)
+            else:
+                t=pd.DataFrame(t,index=code_order)
+                t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
         t2=pd.concat([t,t1],axis=1)
