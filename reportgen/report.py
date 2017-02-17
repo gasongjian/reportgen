@@ -567,6 +567,9 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
 
     code={}
+    '''
+    遍历一遍按文本数据，获取题号和每个题目的类型
+    '''
     for name in d1.columns[headlen:]:
         tmp=re.findall(u'^(\d{1,2})[、：:]',name)
         if tmp:
@@ -579,9 +582,11 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             code[new_name]['qlist']=[]
             code[new_name]['code']={}
             code[new_name]['qtype']=''
-            code[new_name]['qtype2']=''
-            code[new_name]['sample_len']=0
-            qcontent=str(d1[new_name])
+            code[new_name]['name']=''
+            qcontent=str(list(d1[new_name]))
+            # 单选题和多选题每个选项都可能有开放题，得识别出来
+            if ('〖' in qcontent) and ('〗' in qcontent):
+                code[new_name]['qlist_open']=[]
             if '┋' in qcontent:
                 code[new_name]['qtype']=u'多选题'
             elif '→' in qcontent:
@@ -602,8 +607,8 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[current_name]['code']={}
                 code[current_name]['code_r']={}
                 code[current_name]['qtype']=u'矩阵单选题'
-                code[current_name]['qtype2']=''
-                code[current_name]['sample_len']=0
+                code[current_name]['name']=''
+                #code[current_name]['sample_len']=0
                 d1.rename(columns={name:new_name},inplace=True)
             else:
                 j+=1
@@ -613,32 +618,34 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             #print('can not dection the NO. of question')
             #print(name)
             #pass
-
-    for i,name in enumerate(d2.columns[6:]):
-        tmp1=re.findall(u'^(\d{1,2})[、：:]',name)
-        tmp2=re.findall(u'^第(.*?)题',name)
+    # 遍历按序号数据，完整编码
+    d2qlist=d2.columns[6:].tolist()
+    for name in d2qlist:
+        tmp1=re.findall(u'^(\d{1,2})[、：:]',name)# 单选题和填空题
+        tmp2=re.findall(u'^第(.*?)题',name)# 多选题、排序题和矩阵单选题
         if tmp1:
             current_name='Q'+tmp1[0]# 当前题目的题号
             d2.rename(columns={name:current_name},inplace=True)
             code[current_name]['qlist'].append(current_name)
-            code[current_name]['sample_len']=d2[current_name].notnull().sum()
-            #code[current_name]['qtype']=u'单选题'
+            #code[current_name]['sample_len']=d2[current_name].count()
             c1=d1[current_name].unique()
             c2=d2[current_name].unique()
-            '''
-            if (c2.dtype != object) and len(c2)<code[current_name]['sample_len']*0.6:
-                code[current_name]['code']=dict(zip(c2,c1))
-                code[current_name]['qtype']=u'单选题'
-            else:
-                code[current_name]['qtype']=u'填空题'
-            '''
             if (c2.dtype == object) or (list(c1)==list(c2)):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
                 code[current_name]['code']=dict(zip(c2,c1))
+                if 'qlist_open' in code[current_name].keys():
+                    tmp=d1[current_name].map(lambda x: re.findall('〖(.*?)〗',x)[0] if re.findall('〖(.*?)〗',x) else '')
+                    ind=np.argwhere(d2.columns.values==current_name).tolist()[0][0]
+                    d2.insert(ind+1,current_name+'_open',tmp)
+                    c1=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
+                    code[current_name]['qlist_open']=[current_name+'_open']
+                code[current_name]['code']=dict(zip(c2,c1))
+
         elif tmp2:
             name0='Q'+tmp2[0]
+            # 新题第一个选项
             if name0 != current_name:
                 j=1#记录多选题的小题号
                 current_name=name0
@@ -650,7 +657,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                     #print(dict(zip(c2,c1)))
                 else:
                     name1='Q'+tmp2[0]+'_A%s'%j
-                code[current_name]['sample_len']=d2[name].notnull().sum()
+                #code[current_name]['sample_len']=d2[name].notnull().sum()
             else:
                 j+=1#记录多选题的小题号
                 c2=list(d2[name].unique())
@@ -665,11 +672,19 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                     name1='Q'+tmp2[0]+'_A%s'%j
             code[current_name]['qlist'].append(name1)
             d2.rename(columns={name:name1},inplace=True)
-            tmp3=re.findall(u'第.*?题\((.*?)\)',name)[0]
+            tmp3=re.findall(u'第.*?题\((.*)\)',name)[0]
             if code[current_name]['qtype'] == u'矩阵单选题':
                 code[current_name]['code_r'][name1]=tmp3
             else:
                 code[current_name]['code'][name1]=tmp3
+            # 识别开放题
+            if (code[current_name]['qtype'] == u'多选题'):
+                qcontent=str(list(d1[current_name]))
+                if re.findall(tmp3+'〖.*?〗',qcontent):
+                    tmp=d1[current_name].map(lambda x: re.findall(tmp3+'〖(.*?)〗',x)[0] if re.findall(tmp3+'〖(.*?)〗',x) else '')
+                    ind=np.argwhere(d2.columns.values==name1).tolist()[0][0]
+                    d2.insert(ind+1,name1+'_open',tmp)
+                    code[current_name]['qlist_open'].append(name1+'_open')
         # 删除字典中的nan
         keys=list(code[current_name]['code'].keys())
         for key in keys:
@@ -684,6 +699,27 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 #
 #
 ## ==========================================================
+
+
+
+def save(data,filename=u'data.xlsx',code=None):
+    '''保存问卷数据到本地
+    根据filename后缀选择相应的格式保存
+    如果有code,则保存按文本数据
+    '''
+    savetype=os.path.splitext(filename)[1][1:]
+    if code:
+        for qq in code.keys():
+            qtype=code[qq]['qtype']
+            if qtype == u'单选题':
+                data[qq].replace(code[qq]['code'],inplace=True)
+            elif qtype == u'矩阵单选题':
+                data[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
+    if (savetype == u'xlsx') or (savetype == u'xls'):
+        data.to_excel(filename,index=False)
+    elif savetype == u'csv':
+        data.to_csv(filename,index=False)
+
 
 def sa_to_ma(data):
     '''单选题数据转换成多选题数据
