@@ -23,7 +23,7 @@ import report as rpt
 #  数据编码和导入
 data,code=rpt.wenjuanxing()#将问卷星的按文本数据和按序号数据放在“.\\data\\”中即可，也可以自定义路径
 # 描述统计报告生成
-rpt.summary_chart(data,code,filename=u'调研报告初稿')
+rpt.summary_chart(data,code,filename=u'调研报告初稿');
 ```
 如上代码可以在.\\out\\文件夹下生成两个文件
 
@@ -39,7 +39,7 @@ import report as rpt
 data,code=rpt.wenjuanxing()
 # 交叉统计报告生成(假设第一道题Q1是性别选择题)
 save_dstyle=['FE','TGI','CHI']#自由选择需要保存的指标(FE:期望频数等)
-rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析',save_dstyle=save_dstyle)
+rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析',save_dstyle=save_dstyle);
 ```
 如上代码可以在.\\out\\文件夹下生成5个文件
 
