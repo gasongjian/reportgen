@@ -35,6 +35,9 @@ from pptx.enum.chart import XL_LABEL_POSITION
 from pptx.dml.color import RGBColor
 
 
+
+
+
 def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
     '''将pandas数据框添加到slide上，并生成pptx上的表格
     输入：
@@ -235,7 +238,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     try:
         txBox.text_frame.fit_text(max_size=12)
     except:
-        print(u'can not fit the fontsize')
+        log='cannot fit the size of font'
 
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
@@ -243,8 +246,10 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         width,height = Emu(0.70*slide_width), Emu(0.05*slide_height)
         txBox = slide.shapes.add_textbox(left, top, width, height)
         txBox.text_frame.text=footnote
-        txBox.text_frame.fit_text(max_size=10)
-
+        try:
+            txBox.text_frame.fit_text(max_size=10)
+        except:
+            log='cannot fit the size of font'
 
 
     chart_data=df_to_chartdata(df,chart_list[chart_type][1])
@@ -263,11 +268,11 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
 
     try:
         chart.category_axis.tick_labels.font.size=font_default_size
-    except Exception as e:
+    except:
         unsuc=0#暂时不知道怎么处理
     try:
         chart.value_axis.tick_labels.font.size=font_default_size
-    except Exception as e:
+    except:
         unsuc=0
     # 添加数据标签
 
@@ -356,6 +361,7 @@ def read_code(filename):
         code=json.load(filename)
         return code
     d=pd.read_excel(filename,header=None)
+    d=d[d.any(axis=1)]#去除空行
     d.replace({np.nan:'NULL'},inplace=True)
     d=d.as_matrix()
     code={}
@@ -565,6 +571,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     d1=pd.read_excel(filename1,encoding='gbk')
     d2=pd.read_excel(filename2,encoding='gbk')
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
+    #d1.replace({u'(跳过)':np.nan},inplace=True)
 
     code={}
     '''
@@ -628,9 +635,12 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             d2.rename(columns={name:current_name},inplace=True)
             code[current_name]['qlist'].append(current_name)
             #code[current_name]['sample_len']=d2[current_name].count()
-            c1=d1[current_name].unique()
-            c2=d2[current_name].unique()
-            if (c2.dtype == object) or (list(c1)==list(c2)):
+            ind=d2[current_name].copy()
+            ind=ind.notnull()
+            c1=d1.loc[ind,current_name].unique()
+            c2=d2.loc[ind,current_name].unique()
+            print('========= %s========'%current_name)
+            if (c2.dtype == object) or (list(c1)==list(c2)) or (len(c2)>50):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
@@ -708,17 +718,18 @@ def save(data,filename=u'data.xlsx',code=None):
     如果有code,则保存按文本数据
     '''
     savetype=os.path.splitext(filename)[1][1:]
+    data1=data.copy()
     if code:
         for qq in code.keys():
             qtype=code[qq]['qtype']
             if qtype == u'单选题':
-                data[qq].replace(code[qq]['code'],inplace=True)
+                data1[qq].replace(code[qq]['code'],inplace=True)
             elif qtype == u'矩阵单选题':
-                data[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
+                data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
     if (savetype == u'xlsx') or (savetype == u'xls'):
-        data.to_excel(filename,index=False)
+        data1.to_excel(filename,index=False)
     elif savetype == u'csv':
-        data.to_csv(filename,index=False)
+        data1.to_csv(filename,index=False)
 
 
 def sa_to_ma(data):
@@ -812,8 +823,8 @@ def table(data,code):
         t1[u'合计']=t1.sum()
         t.rename(index=code['code'],inplace=True)
         t1.rename(index=code['code'],inplace=True)
-        t.rename(u'占比',inplace=True)
-        t1.rename(u'频数',inplace=True)
+        t.name=u'占比'
+        t1.name=u'频数'        
         t=pd.DataFrame(t)
         t1=pd.DataFrame(t1)
     elif qtype == u'多选题':
@@ -823,8 +834,8 @@ def table(data,code):
         t1.rename(index=code['code'],inplace=True)
         t=t1.copy()
         t=t/sample_len
-        t.rename(u'占比',inplace=True)
-        t1.rename(u'频数',inplace=True)
+        t.name=u'占比'
+        t1.name=u'频数'   
         t=pd.DataFrame(t)
         t1=pd.DataFrame(t1)
     elif qtype == u'矩阵单选题':
@@ -960,88 +971,6 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
         t1=None
     return (t,t1)
 
-
-def rptcrosstab(data_index,data_column,code):
-    '''[后期会删除，请用crosstab]
-    交叉分析：默认data_column是自变量
-    data_index:因变量，题目类型等参数有code给出
-    code: dict格式，定义data_index的相关信息
-    返回两个数据：
-    t1：默认的百分比表，行是data_index,列是data_column
-    t2：原始频数表，且添加了合计项
-    '''
-    # 单选题
-    data_index=pd.DataFrame(data_index)
-    data_column=pd.DataFrame(data_column)
-    qtype=code['qtype']
-    index=code['qlist']
-    cross_class=data_column.columns[0]
-    column_freq=data_column.iloc[:,0].value_counts()
-    column_freq[u'总体']=column_freq.sum()
-    if qtype == u'单选题':
-        t=pd.crosstab(data_index.iloc[:,0],data_column.iloc[:,0])
-        t[u'总体']=data_index.iloc[:,0].value_counts()
-        t.sort_values([u'总体'],ascending=False,inplace=True)
-        t1=t.copy()
-        for i in t.columns:
-            t.loc[:,i]=t.loc[:,i]/t.sum()[i]
-        #t1.loc[u'合计',:]=column_freq
-        t.rename(index=code['code'],inplace=True)
-        t1.rename(index=code['code'],inplace=True)
-        return (t,t1)
-
-    elif qtype == u'多选题':
-        data=data_index.join(data_column)
-        t=data.groupby([cross_class])[index].sum().T
-        t[u'总体']=data_index.sum()
-        t.sort_values([u'总体'],ascending=False,inplace=True)
-        t1=t.copy()
-        for i in t.columns:
-            t.loc[:,i]=t.loc[:,i]/column_freq[i]
-        #t1.loc[u'合计',:]=column_freq
-        t.rename(index=code['code'],inplace=True)
-        t1.rename(index=code['code'],inplace=True)
-        return (t,t1)
-    elif qtype == u'矩阵单选题':
-        data=data_index.join(data_column)
-        t=data.groupby([cross_class])[index].mean().T
-        t[u'总体']=data_index.mean()
-        t.sort_values([u'总体'],ascending=False,inplace=True)
-        t1=t.copy()
-        #t1.loc[u'合计',:]=column_freq
-        t.rename(index=code['code_r'],inplace=True)
-        t1.rename(index=code['code_r'],inplace=True)
-        return (t,t1)
-    elif qtype == u'排序题':
-        data=data_index.join(data_column)
-        topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index])
-        qsort=dict(zip([i+1 for i in range(topn)],[topn-i for i in range(topn)]))
-        data_index.replace(qsort,inplace=True)
-        t=data.groupby([cross_class])[index].sum().T
-        t[u'总体']=data_index.sum()/data_index.notnull().T.any().sum()
-        t.sort_values([u'总体'],ascending=False,inplace=True)
-        t1=t.copy()
-        for i in t.columns:
-            t.loc[:,i]=t.loc[:,i]/column_freq[i]
-        #t1.loc[u'合计',:]=column_freq
-        t.rename(index=code['code'],inplace=True)
-        t1.rename(index=code['code'],inplace=True)
-        return (t,t1)
-        '''
-        t=pd.DataFrame(columns=columns,index=index)
-        for i in t.index:
-            for j in t.columns:
-                tmp=data_index.loc[data_column==j,i]
-                tmp=tmp*(topn+1-tmp)
-                t.loc[i,j]=tmp.sum()
-        '''
-    else:
-        return (None,None)
-
-
-
-
-
 def contingency(fo,alpha=0.05):
     ''' 列联表分析：(观察频数表分析)
     1、生成TGI指数、TWI指数、CHI指数
@@ -1051,6 +980,8 @@ def contingency(fo,alpha=0.05):
     chi_test: 卡方检验结果，1:显著；0:不显著；-1：期望值不满足条件
     coef: 包含chi2、p值、V相关系数
     log: 记录一些异常情况
+    FO: 观察频数   
+    FE: 期望频数
     TGI：fo/fe
     TWI：fo-fe
     CHI：sqrt((fo-fe)(fo/fe-1))*sign(fo-fe)
@@ -1068,7 +999,6 @@ def contingency(fo,alpha=0.05):
     .'chi_mean':
     '''
     import scipy.stats as stats
-    import math
     cdata={}
     if isinstance(fo,pd.core.series.Series):
         fo=pd.DataFrame(fo)
@@ -1096,7 +1026,7 @@ def contingency(fo,alpha=0.05):
     # 显著性检验(独立性检验)
     significant={}
     significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
-    threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
+    #threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
     # 去除行变量中行为0的列
     fo=fo[fo.sum(axis=1)>10]
     if (fo.shape[0]<=1) or (np.any(fo.sum()==0)) or (np.any(fo.sum(axis=1)==0)):
@@ -1230,16 +1160,8 @@ template=None):
     if save_dstyle:
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
-            #locals()[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
-            #print(dstyle in locals().keys())
-    #Writer_TWI=pd.ExcelWriter('.\\out\\'+filename+u'_TWI.xlsx')
-    #Writer_TGI=pd.ExcelWriter('.\\out\\'+filename+u'_TGI.xlsx')
-    #Writer_CHI=pd.ExcelWriter('.\\out\\'+filename+u'_CHI.xlsx')
-    '''
-    if save_dstyle:
-        for dstyle in save_dstyle:
-            eval('Writer_'+dstyle+' = pd.ExcelWriter(".\\out\\'+filename+u'_'+dstyle+'.xlsx")')
-    '''
+
+    result={}#记录每道题的的统计数据
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
@@ -1293,6 +1215,7 @@ template=None):
 
         #列联表分析
         cdata=contingency(t1,alpha=0.05)
+        result[qq]=cdata
         summary=cdata['summary']['summary']
         if plt_dstyle:
             plt_data=cdata[plt_dstyle]
@@ -1305,15 +1228,6 @@ template=None):
         if save_dstyle:
             for dstyle in save_dstyle:
                 cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
-        #cdata['TWI'].to_excel(Writer_TWI,qq)
-        #cdata['TGI'].to_excel(Writer_TGI,qq)
-        #cdata['CHI'].to_excel(Writer_CHI,qq)
-        # 保存指标数据
-        '''
-        if save_dstyle:
-            for dstyle in save_dstyle:
-                eval('cdata["'+dstyle+'"].to_excel('+'Writer_'+dstyle+',"'+qq+'")')
-        '''
 
         '''
         # ========================【特殊题型处理区】================================
@@ -1350,14 +1264,8 @@ template=None):
     if save_dstyle:
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle].save()
-    #Writer_CHI.save()
-    '''
-    if save_dstyle:
-        if u'TGI' in save_dstyle:
-            Writer_TGI.save()
-        elif u'TWI' in save_dstyle:
-            Writer_TWI.save()
-    '''
+    return result
+
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
 significance_test=False, max_column_chart=20,template=None):
@@ -1389,6 +1297,7 @@ significance_test=False, max_column_chart=20,template=None):
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
+    result={}#记录每道题的过程数据
     # ================背景页=============================
     title=u'背景说明(Powered by Python)'
     summary=u'有效样本为%d'%sample_len
@@ -1437,6 +1346,7 @@ significance_test=False, max_column_chart=20,template=None):
             plt_data=t.copy()
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
+        result[qq]=plt_data
         title=qq+': '+qtitle
         summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
@@ -1465,6 +1375,7 @@ significance_test=False, max_column_chart=20,template=None):
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
     prs.save('.\\out\\'+filename+u'.pptx')
     Writer.save()
+    return result
 
 
 
