@@ -1196,6 +1196,10 @@ template=None):
             cross_order=[q for q in cross_order if q in t.columns]
             t=pd.DataFrame(t,columns=cross_order)
             t1=pd.DataFrame(t1,columns=cross_order)
+        if cross_order and reverse_display:
+            cross_order=[q for q in cross_order if q in t.index]
+            t=pd.DataFrame(t,index=cross_order)
+            t1=pd.DataFrame(t1,index=cross_order)
         if 'code_order' in code[qq]:
             code_order=code[qq]['code_order']
             if reverse_display:
