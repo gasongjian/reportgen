@@ -639,7 +639,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             ind=ind.notnull()
             c1=d1.loc[ind,current_name].unique()
             c2=d2.loc[ind,current_name].unique()
-            print('========= %s========'%current_name)
+            #print('========= %s========'%current_name)
             if (c2.dtype == object) or (list(c1)==list(c2)) or (len(c2)>50):
                 code[current_name]['qtype']=u'填空题'
             else:
