@@ -58,11 +58,55 @@ rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析',save_d
 5. `性别差异分析_CHI.xlsx`:
 
 
+### 2.3 常用函数
+
+```pyton
+import report as rpt
+# 文件I/O 
+data=rpt.read_data(filename)
+code=rpt.read_code(filename)
+rpt.save_data(data,filename,code)
+rpt.save_code(code,filename)
+data,code=rpt.wenjuanxing(filepath)# 编码问卷星的数据
+data,code=rpt.wenjuanwang(filepath)# 编码问卷网的数据
+# 数据统计函数
+t,t1=rpt.qtable(data,code,'Q1')# 单变量频数统计
+t,t1=rpt.qtable(data,code,'Q1','Q2')# 双变量交叉统计
+# 数据分析函数
+cdata=rpt.contingency(fo)# 列联表分析
+rpt.gof_test(fo,fe)# 拟合优度检验
+rpt.chi2_test(fo,fe)# 卡方检验
+rpt.binomial_interval(p,n)# 计算比率的置信区间
+# 自动描述统计报告
+'''
+summary_qlist: 例如['Q1','Q2'],需要分析的问卷题目列表，缺省为code中所有的关键词
+template: 例如{'path':'mytemplate.pptx','layouts':[1,2]}, 缺省为pptx自带的模板
+
+'''
+rpt.summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
+max_column_chart=20,template=None)
+
+# 自动交叉统计报告
+'''
+cross_class: 需要交叉分析的题目，如：'Q1'
+cross_qlist: 例如['Q1','Q2'],需要分析的问卷题目列表，缺省为code中所有的关键词
+plt_dstyle: 绘制在ppt上使用的数据格式，缺省为百分比表，可以选择'TGI'等
+save_dstyle: 需要保存的数据，例如:['TGI','FO','TWI','CHI']
+template: 例如{'path':'mytemplate.pptx','layouts':[1,2]}, 缺省为pptx自带的模板
+
+'''
+rpt.cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
+delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
+reverse_display=False,total_display=True,max_column_chart=20,save_dstyle=None,\
+template=None):
+```
+
+
 =========================
 =========================
 
 
-## 3、工具包入门
+## 3、工具包教程
 
 ### 3.1 数据编码和预处理
 
@@ -73,11 +117,19 @@ rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析',save_d
 为了区分题目类型和统计处理方法，本工具包统一使用一种数据类型（或者说编码方式）：
 
 1、按序号编码的数据(csv、xlsx等都可以)，示例如下：
-   
+  
 
-Q1|Q2|Q3_A1|Q3_A2|Q3_A3|Q3_A4|
------
-1|2|1|0|1|0
+|Q1|Q2|Q3_A1|Q3_A2|Q3_A3|Q3_A4|
+|:----:|:---:|:----:|:----:|:---:|:----:|
+|1|1|1|0|1|0|
+|1|2|0|0|1|0|
+|1|1|1|0|0|1|
+|2|3|0|1|1|0|
+|1|2|1|0|1|0|
+|1|4|0|1|0|1|
+|2|2|1|0|1|0|
+|1|1|0|1|0|1|
+|2|2|1|0|1|0|
 
 
 2、 编码文件（json格式）, 给定每道题的题号、序号编码等内容，示例：
@@ -89,21 +141,62 @@ code={'Q1':{
         1:'男',
         2:'女'
     }
+    'qtype':'单选题',
+    'qlist':['Q1']
+},
+'Q2':{
+    'content':'年龄',
+    'code':{
+        1:'17岁以下',
+        2:'18-25岁',
+        3:'26-35岁',
+        4:'36-46岁'
+    },
+    'qtype':'单选题',
+    'qlist':['Q2']
+},
+'Q3':{
+    'content':'爱好',
+    'code':{
+        'Q3_A1':'17岁以下',
+        'Q3_A2':'18-25岁',
+        'Q3_A3':'26-35岁',
+        'Q3_A4':'36-46岁'
+    },
+    'qtype':'多选题',
+    'qlist':['Q3_A1','Q3_A2','Q3_A3','Q3_A4']
 }
+}
+# 其中为了便于修改code编码，本工具包提供了两个json于xlsx之间的相互转换函数
+# rpt.read_code('code.xlsx')同样可以返回字典格式的code
 ```
 
-对于直接从问卷网和问卷星上下载的源数据，本工具包支持自动编码
+对于处理好的数据，可以用如下方式导入：
 
-#### 3.1.1 问卷网
+```python
+data=rpt.read_data('Data_Original.xlsx')
+code=rpt.read_code('code.xlsx')
+```
 
-问卷网上直接下载下来的数据文件有3个，分别是`all`()、`all`() 和`code.xlsx`
+对于从网站上下载的原始数据，可以使用如下方式导入:
+
+```python
+# 问卷星 
+data,code=rpt.wenjuanxing(['320_320_0.xls','320_320_2.xls'])
+# 参数如果缺省，函数会自动在工作目录的 `.\\data\\`文件夹中寻找
+
+# 问卷网  
+data,code=rpt.wenjuanwang(['All_Data_Readable.csv','All_Data_Original.csv','code.csv'])
+# 参数如果缺省，函数会自动在工作目录的 `.\\data\\`文件夹中寻找
+
+```
 
 
 ### 3.2 描述统计
 
 ### 3.3 交叉统计
 
-### 3.4 列联合表分析
+### 3.4 列联表分析
 
 ### 3.5 PPT生成
 

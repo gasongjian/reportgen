@@ -408,16 +408,16 @@ def read_code(filename):
             code[key][tmp]=d[i,1]
     return code
 
-def to_code(code,savename='code.xlsx'):
+def save_code(code,filename='code.xlsx'):
     '''code本地输出
     1、输出为json格式，根据文件名自动识别
     2、输出为Excel格式
     see also read_code
     '''
-    save_type=os.path.splitext(savename)[1][1:]
+    save_type=os.path.splitext(filename)[1][1:]
     if save_type == 'json':
         code=pd.DataFrame(code)
-        code.to_json(savename,force_ascii=False)
+        code.to_json(filename,force_ascii=False)
         return
     tmp=pd.DataFrame(columns=['name','value1','value2'])
     i=0
@@ -439,8 +439,12 @@ def to_code(code,savename='code.xlsx'):
                     tmp.loc[i]=['',ll,'']
                     i+=1
             elif type(tmp2) == dict:
+                try:
+                    tmp2_key=sorted(tmp2)
+                except:
+                    tmp2_key=tmp2.keys()                 
                 j=0
-                for key1 in tmp2.keys():
+                for key1 in tmp2_key:
                     if j==0:
                         tmp.loc[i]=[key0,key1,tmp2[key1]]
                     else:
@@ -452,9 +456,9 @@ def to_code(code,savename='code.xlsx'):
                     tmp.loc[i]=[key0,tmp2,'']
                     i+=1
     if sys.version>'3':
-        tmp.to_excel(savename,index=False,header=False)
+        tmp.to_excel(filename,index=False,header=False)
     else:
-        tmp.to_csv(savename,index=False,header=False,encoding='utf-8')
+        tmp.to_csv(filename,index=False,header=False,encoding='utf-8')
 
 
 '''问卷数据导入和编码
@@ -712,7 +716,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 
 
 
-def save(data,filename=u'data.xlsx',code=None):
+def save_data(data,filename=u'data.xlsx',code=None):
     '''保存问卷数据到本地
     根据filename后缀选择相应的格式保存
     如果有code,则保存按文本数据
@@ -730,6 +734,17 @@ def save(data,filename=u'data.xlsx',code=None):
         data1.to_excel(filename,index=False)
     elif savetype == u'csv':
         data1.to_csv(filename,index=False)
+        
+def read_data(filename):
+    savetype=os.path.splitext(filename)[1][1:]
+    if (savetype==u'xlsx') or (savetype==u'xls'):
+        data=pd.read_excel(filename)
+    elif savetype==u'csv':
+        data=pd.read_csv(filename)
+    else:
+        print('con not read file!')
+    return data
+
 
 
 def sa_to_ma(data):
@@ -969,6 +984,22 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     else:
         t=None
         t1=None
+    return (t,t1)
+    
+    
+
+def qtable(data,code,q1=None,q2=None):
+    '''简易频数统计函数
+    # 单个变量的频数统计
+    qtable(data,code,'Q1')
+    # 两个变量的交叉统计
+    qtable(data,code,'Q1','Q2')
+    
+    '''
+    if q2 is None:
+        t,t1=table(data[code[q1]['qlist']],code[q1])
+    else:
+        t,t1=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
     return (t,t1)
 
 def contingency(fo,alpha=0.05):
