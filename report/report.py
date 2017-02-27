@@ -1232,13 +1232,15 @@ template=None):
             t=pd.DataFrame(t,index=cross_order)
             t1=pd.DataFrame(t1,index=cross_order)
         if 'code_order' in code[qq]:
-            code_order=code[qq]['code_order']
+            code_order=code[qq]['code_order']            
             if reverse_display:
+                #code_order=[q for q in code_order if q in t.columns]
                 if u'总体' in t1.columns:
                     code_order=code_order+[u'总体']
                 t=pd.DataFrame(t,columns=code_order)
                 t1=pd.DataFrame(t1,columns=code_order)
             else:
+                #code_order=[q for q in code_order if q in t.index]
                 t=pd.DataFrame(t,index=code_order)
                 t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
@@ -1246,7 +1248,7 @@ template=None):
         t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
-        t2.to_excel(Writer,qq,index_label=qq,float_format='%.2f')
+        t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         #列联表分析
         cdata=contingency(t1,alpha=0.05)
@@ -1355,13 +1357,18 @@ significance_test=False, max_column_chart=20,template=None):
 
         # =======数据修正==============
         if 'code_order' in code[qq]:
-            t=pd.DataFrame(t,index=code[qq]['code_order'])
+            code_order=code[qq]['code_order']
+            #code_order=[q for q in code_order if q in t.index]
+            if u'合计' in t.index:
+                code_order=code_order+[u'合计']
+            t=pd.DataFrame(t,index=code_order)
+            t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
         t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
-        t2.to_excel(Writer,qq,index_label=qq,float_format='%.2f')
+        t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         '''显著性分析[暂缺]
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
