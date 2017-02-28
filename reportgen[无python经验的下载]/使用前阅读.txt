@@ -1,0 +1,15 @@
+工具包reportgen
+作者：JSong
+网址(欢迎Folk)：https://github.com/gasongjian/reportgen
+更新时间：2017.02.26
+
+简单教程
+
+1、安装软件anaconda，网址为: (https://www.continuum.io/downloads)(请选择python3版本，安装路径尽量选择C:\)
+2、安装python包`python-pptx`:  管理员模式运行 安装pptx包.bat ,等待安装完成
+3、下载问卷星的按文本数据和按序号数据，替换data文件夹下的数据
+4、如果想生成描述统计报告，即每道题绘制一个柱状图，可以直接运行：描述统计报告生成.bat
+5、如果想生成交叉分析统计报告，如考察每道题目在性别上的差异，可以直接运行：交叉分析报告生成.bat
+
+更负责的教程和工具包更新请参见个人github官网 https://github.com/gasongjian/reportgen
+反馈和需求可以联系：gasongjian@126.com
