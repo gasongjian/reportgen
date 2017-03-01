@@ -116,7 +116,8 @@ def df_to_chartdata(df,datatype,number_format=None):
     XyChartData: 散点图数据
     BubbleChartData:气泡图数据
     '''
-    df=pd.DataFrame(df)
+    if isinstance(df,pd.Series):
+        df=pd.DataFrame(df)
     datatype=datatype.lower()
     if datatype == 'chartdata':
         chart_data = ChartData()
@@ -250,13 +251,15 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
             txBox.text_frame.fit_text(max_size=10)
         except:
             log='cannot fit the size of font'
-
-
-    chart_data=df_to_chartdata(df,chart_list[chart_type][1])
+    chart_type_code=chart_list[chart_type][1]
+    chart_data=df_to_chartdata(df,chart_type_code)
     x, y = Emu(0.05*slide_width), Emu(0.20*slide_height)
     cx, cy = Emu(0.85*slide_width), Emu(0.70*slide_height)
     chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0], \
     x, y, cx, cy, chart_data).chart
+
+    if chart_type_code in [-4169,72,73,74,75]:
+        return
 
     font_default_size=Pt(10)
     # 添加图例
@@ -815,6 +818,30 @@ def fisher_exact(fo,alpha=0.05):
     else:
         result=0
     return (result,p_value)
+    
+    
+def mca(X):
+    from scipy.linalg import diagsvd
+    S = X.sum().sum()
+    Z = X / S  # correspondence matrix
+    r = Z.sum(axis=1)
+    c = Z.sum()
+    D_r = np.diag(1/np.sqrt(r))
+    Z_c = Z - np.outer(r, c)  # standardized residuals matrix
+    D_c = np.diag(1/np.sqrt(c))
+    
+    # another option, not pursued here, is sklearn.decomposition.TruncatedSVD
+    P,s,Q = np.linalg.svd(np.dot(np.dot(D_r, Z_c),D_c))
+    S=diagsvd(s[:2],P.shape[0],2)
+    pr=np.dot(np.dot(D_r,P),S)
+    pc=np.dot(np.dot(D_c,Q.T),S)
+    inertia=np.cumsum(s**2)/np.sum(s**2)
+    inertia=inertia.tolist()
+    if isinstance(X,pd.DataFrame):
+        pr=pd.DataFrame(pr,index=X.index,columns=['X','Y'])
+        pc=pd.DataFrame(pc,index=X.columns,columns=['X','Y'])
+    return pr,pc,inertia
+    
 
 def table(data,code):
     '''
