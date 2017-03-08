@@ -356,7 +356,6 @@ def read_code(filename):
     1、支持json格式
     2、支持本包规定的xlsx格式
     see alse to_code
-
     '''
     file_type=os.path.splitext(filename)[1][1:]
     if file_type == 'json':
@@ -471,18 +470,16 @@ Qn.qtype: 题目类型，包含:单选题、多选题、填空题、排序题、
 Qn.qlist: 题目列表，例如多选题对应着很多小题目
 Qn.code: 题目选项编码
 Qn.code_r: 题目对应的编码(矩阵题目专有)
-Qn.code_order: 题目类别的顺序，用于PPT报告的生成
+Qn.code_order: 题目类别的顺序，用于PPT报告的生成[一般后期添加]
 Qn.name: 特殊类型，包含：城市题、NPS题等
 '''
 
-def wenjuanwang(filepath='.\\data'):
+def wenjuanwang(filepath='.\\data',encoding='gbk'):
     '''问卷网数据导入和编码
-
     输入：
     filepath:
         列表，[0]为按文本数据路径，[1]为按序号文本，[2]为编码文件
         文件夹路径，函数会自动在文件夹下搜寻相关数据
-
     输出：
     (data,code):
         data为按序号的数据，题目都替换成了Q_n
@@ -491,7 +488,7 @@ def wenjuanwang(filepath='.\\data'):
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
-        filename2=filepath[2]
+        filename3=filepath[2]
     elif os.path.isdir(filepath):
         filename1=os.path.join(filepath,'All_Data_Readable.csv')
         filename2=os.path.join(filepath,'All_Data_Original.csv')
@@ -499,11 +496,12 @@ def wenjuanwang(filepath='.\\data'):
     else:
         print('can not dection the filepath!')
 
-    d1=pd.read_csv(filename1,encoding='gbk')
+    d1=pd.read_csv(filename1,encoding=encoding)
     d1.drop([u'答题时长'],axis=1,inplace=True)
-    d2=pd.read_csv(filename2,encoding='gbk')
-    d3=pd.read_csv(filename3,encoding='gbk',header=None,na_filter=False)
+    d2=pd.read_csv(filename2,encoding=encoding)
+    d3=pd.read_csv(filename3,encoding=encoding,header=None,na_filter=False)
     d3=d3.as_matrix()
+    # 遍历code.csv,获取粗略的编码，暂缺qlist，矩阵单选题的code_r
     code={}
     for i in range(len(d3)):
         if d3[i,0]:
@@ -512,18 +510,30 @@ def wenjuanwang(filepath='.\\data'):
             code[key]['content']=d3[i,1]
             code[key]['qtype']=d3[i,2]
             code[key]['code']={}
+            code[key]['qlist']=[]
         elif d3[i,2]:
             tmp=d3[i,1]
             if code[key]['qtype']  in [u'多选题',u'排序题']:
                 tmp=key+'_A'+'%s'%(tmp)
                 code[key]['code'][tmp]='%s'%(d3[i,2])
+                code[key]['qlist'].append(tmp)
+            elif code[key]['qtype']  in [u'单选题']:
+                try:
+                    tmp=int(tmp)
+                except:
+                    tmp='%s'%(tmp)
+                code[key]['code'][tmp]='%s'%(d3[i,2])
+                code[key]['qlist']=[key]
+            elif code[key]['qtype']  in [u'填空题']:
+                code[key]['qlist']=[key]
             else:
                 try:
-                    tmp=np.float(tmp)
+                    tmp=int(tmp)
                 except:
                     tmp='%s'%(tmp)
                 code[key]['code'][tmp]='%s'%(d3[i,2])
 
+    # 更新矩阵单选的code_r和qlist
     qnames_Readable=list(d1.columns)
     qnames=list(d2.columns)
     for key in code.keys():
@@ -531,24 +541,29 @@ def wenjuanwang(filepath='.\\data'):
         for name in qnames:
             if re.match(key+'_',name) or key==name:
                 qlist.append(name)
-        code[key]['qlist']=qlist
-        code[key]['code_r']={}
+        if ('qlist' not in code[key]) or (not code[key]['qlist']):
+            code[key]['qlist']=qlist
         if code[key]['qtype']  in [u'矩阵单选题']:
             tmp=[qnames_Readable[qnames.index(q)] for q in code[key]['qlist']]
             code_r=[re.findall('_([^_]*?)$',t)[0] for t in tmp]
             code[key]['code_r']=dict(zip(code[key]['qlist'],code_r))
+    # 处理时间格式
+    d2['start']=pd.to_datetime(d2['start'])
+    d2['finish']=pd.to_datetime(d2['finish'])
+    tmp=d2['finish']-d2['start']
+    tmp=tmp.astype(str).map(lambda x:60*int(re.findall(':(\d+):',x)[0])+int(re.findall(':(\d+)\.',x)[0]))
+    ind=np.where(d2.columns=='finish')[0][0]
+    d2.insert(int(ind)+1,u'答题时长(秒)',tmp)
     return (d2,code)
 
 
 def wenjuanxing(filepath='.\\data',headlen=6):
     '''问卷星数据导入和编码
-
     输入：
     filepath:
         列表，[0]为按文本数据路径，[1]为按序号文本
         文件夹路径，函数会自动在文件夹下搜寻相关数据，优先为\d+_\d+_0.xls和\d+_\d+_2.xls
     headlen: 问卷星数据基础信息的列数
-
     输出：
     (data,code):
         data为按序号的数据，题目都替换成了Q_n
@@ -832,9 +847,9 @@ def mca(X):
     
     # another option, not pursued here, is sklearn.decomposition.TruncatedSVD
     P,s,Q = np.linalg.svd(np.dot(np.dot(D_r, Z_c),D_c))
-    S=diagsvd(s[:2],P.shape[0],2)
-    pr=np.dot(np.dot(D_r,P),S)
-    pc=np.dot(np.dot(D_c,Q.T),S)
+    #S=diagsvd(s[:2],P.shape[0],2)
+    pr=np.dot(np.dot(D_r,P),diagsvd(s[:2],P.shape[0],2))
+    pc=np.dot(np.dot(D_c,Q.T),diagsvd(s[:2],Q.shape[0],2))
     inertia=np.cumsum(s**2)/np.sum(s**2)
     inertia=inertia.tolist()
     if isinstance(X,pd.DataFrame):
