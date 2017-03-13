@@ -370,9 +370,11 @@ def read_code(filename):
     for i in range(len(d)):
         tmp=d[i,0]
         if tmp == 'key':
+            # 识别题号
             code[d[i,1]]={}
             key=d[i,1]
         elif tmp in ['qlist','code_order']:
+            # 识别字典值为列表的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -380,6 +382,7 @@ def read_code(filename):
                 j=len(d)-1
             code[key][tmp]=list(d[i:j,1])
         elif tmp in ['code','code_r']:
+            # 识别字典值为字典的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -388,14 +391,16 @@ def read_code(filename):
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
             code[key][tmp]=dict(zip(tmp1,tmp2))
-        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]=='NULL'):
+        # 识别其他的列表字段
+        elif (tmp!='NULL') and (d[i,2]=='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
             else:
                 j=len(d)-1
             code[key][tmp]=list(d[i:j,1])
-        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]!='NULL'):
+        # 识别其他的字典字段
+        elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -442,7 +447,7 @@ def save_code(code,filename='code.xlsx'):
                     i+=1
             elif type(tmp2) == dict:
                 try:
-                    tmp2_key=sorted(tmp2)
+                    tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+',c)[-1]))
                 except:
                     tmp2_key=tmp2.keys()                 
                 j=0
@@ -856,9 +861,95 @@ def mca(X):
         pr=pd.DataFrame(pr,index=X.index,columns=['X','Y'])
         pc=pd.DataFrame(pc,index=X.columns,columns=['X','Y'])
     return pr,pc,inertia
-    
 
 def table(data,code):
+    '''
+    单个题目描述统计
+    code是data的编码，列数大于1
+    返回字典格式数据：
+    'fop'：百分比, 对于单选题和为1，多选题分母为样本数
+    'fo'： 观察频数表，其中添加了合计项
+    'fw':  加权频数表，可实现平均值、T2B等功能，仅当code中存在关键词'weight'时才有
+    '''
+    # 单选题
+    qtype=code['qtype']
+    index=code['qlist']
+    data=pd.DataFrame(data)
+    sample_len=data[code['qlist']].notnull().T.any().sum()
+    result={}
+    if qtype == u'单选题':
+        fo=data.iloc[:,0].value_counts()
+        if 'weight' in code:
+            w=pd.Series(code['weight'])
+            fo1=fo[w.index][fo[w.index].notnull()]
+            fw=(fo1*w).sum()/fo1.sum()
+            result['fw']=fw
+        fo.sort_values(ascending=False,inplace=True)
+        fop=fo.copy()
+        fop=fop/fop.sum()*1.0
+        fop[u'合计']=fop.sum()
+        fo[u'合计']=fo.sum()        
+        fop.rename(index=code['code'],inplace=True)
+        fo.rename(index=code['code'],inplace=True)
+        fop.name=u'占比'
+        fo.name=u'频数'
+        fop=pd.DataFrame(fop)
+        fo=pd.DataFrame(fo)
+        result['fo']=fo
+        result['fop']=fop
+    elif qtype == u'多选题':
+        fo=data.sum()
+        fo.sort_values(ascending=False,inplace=True)
+        fo[u'合计']=fo.sum()
+        fo.rename(index=code['code'],inplace=True)
+        fop=fo.copy()
+        fop=fop/sample_len
+        fop.name=u'占比'
+        fo.name=u'频数'   
+        fop=pd.DataFrame(fop)
+        fo=pd.DataFrame(fo)
+        result['fop']=fop
+        result['fo']=fo           
+    elif qtype == u'矩阵单选题':
+        fo=pd.DataFrame(columns=code['qlist'],index=sorted(code['code']))
+        for i in fo.columns:
+            fo.loc[:,i]=data[i].value_counts()
+        if 'weight' in code:
+            fw=pd.DataFrame(columns=[u'加权'],index=code['qlist'])
+            w=pd.Series(code['weight'])
+            for c in fo.columns:
+                t=fo[c]
+                t=t[w.index][t[w.index].notnull()]
+                fw.loc[c,u'加权']=(t*w).sum()/t.sum()
+            fw.rename(index=code['code_r'],inplace=True)
+            result['fw']=fw
+        fo.rename(columns=code['code_r'],index=code['code'],inplace=True)
+        fop=fo.copy()
+        fop=fop/sample_len
+        result['fop']=fop
+        result['fo']=fo
+    elif qtype == u'排序题':
+        #提供综合统计和TOP1值统计
+        # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
+        topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
+        top1=data.applymap(lambda x:int(x==1))
+        data.replace(qsort,inplace=True)
+        t1=pd.DataFrame()
+        t1['TOP1']=top1.sum()
+        t1[u'综合']=data.sum()
+        t1.sort_values(by=u'综合',ascending=False,inplace=True)
+        t1.rename(index=code['code'],inplace=True)
+        t=t1.copy()
+        t=t/sample_len
+        result['fop']=t
+        result['fo']=t1
+    else:
+        result['fop']=None
+        result['fo']=None
+    return result   
+
+def ntable(data,code):
     '''
     单个题目描述统计
     code是data的编码，列数大于1
@@ -923,6 +1014,131 @@ def table(data,code):
     return (t,t1)
 
 def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
+    '''适用于问卷数据的交叉统计
+    输入参数：
+    data_index: 因变量，放在行中
+    data_column:自变量，放在列中
+    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的
+    code_index: dict格式，指定data_index的编码等信息
+    code_column: dict格式，指定data_column的编码等信息
+    返回字典格式数据
+    'fop'：默认的百分比表，行是data_index,列是data_column
+    'fo'：原始频数表，且添加了总体项
+    'fw': 加权平均值
+    '''
+
+    # 将Series转为DataFrame格式
+    data_index=pd.DataFrame(data_index)
+    data_column=pd.DataFrame(data_column)
+
+    # 获取行/列变量的题目类型
+    #  默认值
+    if data_index.shape[1]==1:
+        qtype1=u'单选题'
+    else:
+        qtype1=u'多选题'
+    if data_column.shape[1]==1:
+        qtype2=u'单选题'
+    else:
+        qtype2=u'多选题'
+    #  根据参数修正
+    if code_index:
+        qtype1=code_index['qtype']
+        if qtype1 == u'单选题':
+            data_index.replace(code_index['code'],inplace=True)
+        elif qtype1 in [u'多选题',u'排序题']:
+            data_index.rename(columns=code_index['code'],inplace=True)
+        elif qtype1 == u'矩阵单选题':
+            data_index.rename(columns=code_index['code_r'],inplace=True)
+    if code_column:
+        qtype2=code_column['qtype']
+        if qtype2 == u'单选题':
+            data_column.replace(code_column['code'],inplace=True)
+        elif qtype2 in [u'多选题',u'排序题']:
+            data_column.rename(columns=code_column['code'],inplace=True)
+        elif qtype2 == u'矩阵单选题':
+            data_column.rename(columns=code_column['code_r'],inplace=True)
+    if qtype:
+        qtype=list(qtype)
+        if len(qtype)==2:
+            qtype1=qtype[0]
+            qtype2=qtype[1]
+        else:
+            qtype1=qtype[0]
+
+    if qtype1 == u'单选题':
+        data_index=sa_to_ma(data_index)
+        qtype1=u'多选题'
+    # 将单选题变为多选题
+    if qtype2 == u'单选题':
+        data_column=sa_to_ma(data_column)
+        qtype2=u'多选题'
+
+    # 准备工作
+    index_list=list(data_index.columns)
+    columns_list=list(data_column.columns)
+    # 次数频数表为同时选择
+    column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
+    #column_freq=data_column.sum()
+    column_freq[u'总体']=column_freq.sum()
+    R=len(index_list)
+    C=len(columns_list)
+    result={}
+    if (qtype1 == u'多选题') and (qtype2 == u'多选题'):
+        data_index.fillna(0,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        if code_index and ('weight' in code_index):
+            w=pd.Series(code_index['weight'])
+            w.rename(index=code_index['code'],inplace=True)
+            fw=pd.DataFrame(columns=[u'加权'],index=t.columns)
+            for c in t.columns:
+                tmp=t[c]
+                tmp=tmp[w.index][tmp[w.index].notnull()]
+                fw.loc[c,u'加权']=(tmp*w).sum()/tmp.sum()
+            fo1=data_index.sum()[w.index][data_index.sum()[w.index].notnull()]
+            fw.loc[u'总体',u'加权']=(fo1*w).sum()/fo1.sum()
+            result['fw']=fw
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+        result['fop']=t
+        result['fo']=t1              
+    elif (qtype1 == u'矩阵单选题') and (qtype2 == u'多选题'):
+        if code_index and ('weight' in code_index):
+            data_index.replace(code_index['weight'],inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t=pd.DataFrame(np.dot(t,np.diag(1/data_column.sum())))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.mean()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        result['fop']=t
+        result['fo']=t1
+    elif (qtype1 == u'排序题') and (qtype2 == u'多选题'):
+        topn=int(data_index.max().max())
+        #topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index_list])
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
+        data_index.replace(qsort,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+        result['fop']=t
+        result['fo']=t1              
+    else:
+        result['fop']=None
+        result['fo']=None
+    return result
+
+
+
+def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
     '''适用于问卷数据的交叉统计
     输入参数：
     data_index: 因变量，放在行中
@@ -1039,10 +1255,10 @@ def qtable(data,code,q1=None,q2=None):
     
     '''
     if q2 is None:
-        t,t1=table(data[code[q1]['qlist']],code[q1])
+        result=table(data[code[q1]['qlist']],code[q1])
     else:
-        t,t1=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
-    return (t,t1)
+        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
+    return result
 
 def contingency(fo,alpha=0.05):
     ''' 列联表分析：(观察频数表分析)
@@ -1210,8 +1426,9 @@ template=None):
         #data.rename(columns=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=[code[cross_class]['code'][k] for k in code[cross_class]['qlist']]
     elif code[cross_class]['qtype'] == u'排序题':
-        tmp,tmp1=table(data[code[cross_class]['qlist']],code[cross_class])
-        cross_class_freq=tmp1[u'综合']
+        tmp=qtable(data,code,cross_class)
+        #tmp,tmp1=table(data[code[cross_class]['qlist']],code[cross_class])
+        cross_class_freq=tmp['fo'][u'综合']
         cross_class_freq[u'合计']=cross_class_freq.sum()
 
 
@@ -1254,10 +1471,11 @@ template=None):
             continue
         # 交叉统计
         if reverse_display:
-            t,t1=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
+            result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
         else:
-            t,t1=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
-
+            result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+        t=result_t['fop']
+        t1=result_t['fo']
         if t is None:
             continue
 
@@ -1274,7 +1492,7 @@ template=None):
             t=pd.DataFrame(t,index=cross_order)
             t1=pd.DataFrame(t1,index=cross_order)
         if 'code_order' in code[qq]:
-            code_order=code[qq]['code_order']            
+            code_order=code[qq]['code_order']         
             if reverse_display:
                 #code_order=[q for q in code_order if q in t.columns]
                 if u'总体' in t1.columns:
@@ -1308,12 +1526,16 @@ template=None):
             for dstyle in save_dstyle:
                 cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
 
-        '''
+        
         # ========================【特殊题型处理区】================================
-        if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
-            title=u'整体满意度'
-        continue
-        '''
+        if 'fw' in result_t:
+            plt_data=result_t['fw']
+            if cross_order and (not reverse_display):
+                if u'总体' not in cross_order:
+                    cross_order=cross_order+[u'总体']
+                cross_order=[q for q in cross_order if q in plt_data.index]
+                plt_data=pd.DataFrame(plt_data,index=cross_order)
+        
         # 绘制PPT
         title=qq+': '+qtitle
         if not summary:
@@ -1395,7 +1617,9 @@ significance_test=False, max_column_chart=20,template=None):
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
-        t,t1=table(data[qlist],code=code[qq])
+        result_t=table(data[qlist],code=code[qq])
+        t=result_t['fop']
+        t1=result_t['fo']
 
         # =======数据修正==============
         if 'code_order' in code[qq]:
@@ -1432,7 +1656,10 @@ significance_test=False, max_column_chart=20,template=None):
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
         title=qq+': '+qtitle
-        summary=u'这里是结论区域.'
+        if (qtype in [u'单选题']) and 'fw' in result_t:
+            summary=u'这里是结论区域, 平均值为%s'%result_t['fw']
+        else:
+            summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
