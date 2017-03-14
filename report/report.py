@@ -840,7 +840,11 @@ def fisher_exact(fo,alpha=0.05):
     return (result,p_value)
     
     
-def mca(X):
+def mca(X,N=2):
+    '''对应分析函数，暂时支持双因素
+    X：观察频数表
+    N：返回的维数，默认2维
+    '''
     from scipy.linalg import diagsvd
     S = X.sum().sum()
     Z = X / S  # correspondence matrix
@@ -853,14 +857,20 @@ def mca(X):
     # another option, not pursued here, is sklearn.decomposition.TruncatedSVD
     P,s,Q = np.linalg.svd(np.dot(np.dot(D_r, Z_c),D_c))
     #S=diagsvd(s[:2],P.shape[0],2)
-    pr=np.dot(np.dot(D_r,P),diagsvd(s[:2],P.shape[0],2))
-    pc=np.dot(np.dot(D_c,Q.T),diagsvd(s[:2],Q.shape[0],2))
+    pr=np.dot(np.dot(D_r,P),diagsvd(s[:N],P.shape[0],N))
+    pc=np.dot(np.dot(D_c,Q.T),diagsvd(s[:N],Q.shape[0],N))
     inertia=np.cumsum(s**2)/np.sum(s**2)
     inertia=inertia.tolist()
     if isinstance(X,pd.DataFrame):
-        pr=pd.DataFrame(pr,index=X.index,columns=['X','Y'])
-        pc=pd.DataFrame(pc,index=X.columns,columns=['X','Y'])
+        pr=pd.DataFrame(pr,index=X.index,columns=list('XYZUVW')[:N])
+        pc=pd.DataFrame(pc,index=X.columns,columns=list('XYZUVW')[:N])
     return pr,pc,inertia
+    '''
+    w=pd.ExcelWriter(u'mca_.xlsx')
+    pr.to_excel(w,startrow=0,index_label=True)
+    pc.to_excel(w,startrow=len(pr)+2,index_label=True)
+    w.save()
+    '''
 
 def table(data,code):
     '''
