@@ -397,15 +397,18 @@ def read_code(filename):
             if ind.any():
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
-            code[key][tmp]=list(d[i:j,1])
+                j=len(d)
+            if i==len(d)-1:
+                code[key][tmp]=d[i,1]
+            else:
+                code[key][tmp]=list(d[i:j,1])            
         # 识别其他的字典字段
         elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
+                j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
             code[key][tmp]=dict(zip(tmp1,tmp2))
@@ -438,7 +441,6 @@ def save_code(code,filename='code.xlsx'):
         i+=1
         for key0 in code0:
             tmp2=code0[key0]
-            tmp.loc
             if type(tmp2) == list:
                 tmp.loc[i]=[key0,tmp2[0],'']
                 i+=1
@@ -447,9 +449,9 @@ def save_code(code,filename='code.xlsx'):
                     i+=1
             elif type(tmp2) == dict:
                 try:
-                    tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+',c)[-1]))
+                    tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
                 except:
-                    tmp2_key=tmp2.keys()                 
+                    tmp2_key=list(tmp2.keys())               
                 j=0
                 for key1 in tmp2_key:
                     if j==0:
@@ -580,9 +582,6 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         filename2=filepath[1]
     elif os.path.isdir(filepath):
         filelist=os.listdir(filepath)
-        if ('All_Data_Readable.xls' in filelist) and ('All_Data_Original.xls' in filelist):
-            filename1='All_Data_Readable.xls'
-            filename2='All_Data_Original.xls'
         for f in filelist:
             s1=re.findall('\d+_\d+_0.xls',f)
             s2=re.findall('\d+_\d+_2.xls',f)
@@ -595,8 +594,8 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     else:
         print('can not dection the filepath!')
 
-    d1=pd.read_excel(filename1,encoding='gbk')
-    d2=pd.read_excel(filename2,encoding='gbk')
+    d1=pd.read_excel(filename1)
+    d2=pd.read_excel(filename2)
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
     #d1.replace({u'(跳过)':np.nan},inplace=True)
 
@@ -716,9 +715,13 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[current_name]['code'][name1]=tmp3
             # 识别开放题
             if (code[current_name]['qtype'] == u'多选题'):
+                openq=tmp3+'〖.*?〗'
+                openq=re.sub('\)','\)',openq)
+                openq=re.sub('\(','\(',openq)
+                openq=re.compile(openq)
                 qcontent=str(list(d1[current_name]))
-                if re.findall(tmp3+'〖.*?〗',qcontent):
-                    tmp=d1[current_name].map(lambda x: re.findall(tmp3+'〖(.*?)〗',x)[0] if re.findall(tmp3+'〖(.*?)〗',x) else '')
+                if re.findall(openq,qcontent):
+                    tmp=d1[current_name].map(lambda x: re.findall(openq,x)[0] if re.findall(openq,x) else '')
                     ind=np.argwhere(d2.columns.values==name1).tolist()[0][0]
                     d2.insert(ind+1,name1+'_open',tmp)
                     code[current_name]['qlist_open'].append(name1+'_open')
