@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Nov  8 20:05:36 2016
-@author: gason
+@author: JSong
 """
 '''
 pptx 用的单位是pptx.util.Emu,  英语单位
@@ -795,11 +795,25 @@ def binomial_interval(p,n,alpha=0.05):
     b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
     return (a,b)
 
-def gof_test(fo,fe,alpha=0.05):
+def gof_test(fo,fe=None,alpha=0.05):
+    '''拟合优度检验
+    输入：
+    fo:观察频数
+    fe:期望频数，缺省为平均数
+    返回：
+    1: 样本与总体有差异
+    0：样本与总体无差异
+    例子：
+    gof_test(np.array([0.3,0.4,0.3])*222)
+    '''
     import scipy.stats as stats
     fo=np.array(fo).flatten()
-    fe=np.array(fe).flatten()
     C=len(fo)
+    if not fe:
+        N=fo.sum() 
+        fe=np.array([N/C]*C)
+    else:
+        fe=np.array(fe).flatten()    
     chi_value=(fo-fe)**2/fe
     chi_value=chi_value.sum()
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
@@ -871,6 +885,37 @@ def mca(X,N=2):
     pc.to_excel(w,startrow=len(pr)+2,index_label=True)
     w.save()
     '''
+
+def sankey(df,filename=None):
+    '''SanKey图绘制
+    注:暂时没找到好的Python方法，所以只生成R语言所需数据
+    返回links 和 nodes
+    # R code 参考
+    library(networkD3)
+    dd=read.csv('price_links.csv')
+    links<-data.frame(source=dd$from,target=dd$to,value=dd$value)
+    nodes=read.csv('price_nodes.csv',header = FALSE)
+    names(nodes)='name'
+    Energy=c(links=links,nodes=nodes)
+    sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
+                  Target = "target", Value = "value", NodeID = "name",
+                  units = "TWh",fontSize = 18,fontFamily='微软雅黑',nodeWidth=20) 
+    '''
+    nodes=['Total']
+    nodes=nodes+list(df.columns)+list(df.index)
+    nodes=pd.Series(nodes)
+    R,C=df.shape
+    t1=pd.DataFrame(df.as_matrix(),columns=range(1,C+1),index=range(C+1,R+C+1))
+    t1.index.name='to'
+    t1.columns.name='from'
+    links=t1.unstack().reset_index(name='value')
+    links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
+    links=links0.append(links)   
+    if filename:
+        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
+        nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
+    return (links,nodes)
+
 
 def table(data,code):
     '''
@@ -960,7 +1005,7 @@ def table(data,code):
     return result   
 
 def ntable(data,code):
-    '''
+    '''【后期将删除】
     单个题目描述统计
     code是data的编码，列数大于1
     返回两个数据：
@@ -1149,7 +1194,7 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
 
 
 def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
-    '''适用于问卷数据的交叉统计
+    '''适用于问卷数据的交叉统计【后期将删除】
     输入参数：
     data_index: 因变量，放在行中
     data_column:自变量，放在列中
