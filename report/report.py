@@ -1698,13 +1698,6 @@ significance_test=False, max_column_chart=20,template=None):
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
         '''
 
-
-
-        '''
-        # ========================【特殊题型处理区】================================
-        if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
-            title=u'整体满意度'
-        '''
         # 数据再加工
         if qtype in [u'单选题',u'多选题']:
             plt_data=t*100
