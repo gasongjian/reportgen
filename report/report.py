@@ -1715,10 +1715,11 @@ significance_test=False, max_column_chart=20,template=None):
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
         }
+        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是dataFrame
         if len(t)>max_column_chart:
             plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
-        elif len(t)>3:
+        elif (len(t)>3) or (len(plt_data.shape)>1 and plt_data.shape[1]>1):
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
         else:
