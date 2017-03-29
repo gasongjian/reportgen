@@ -380,7 +380,11 @@ def read_code(filename):
                 j=i+1+ind[0][0]
             else:
                 j=len(d)-1
-            code[key][tmp]=list(d[i:j,1])
+            tmp2=list(d[i:j,1])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            code[key][tmp]=tmp2
         elif tmp in ['code','code_r']:
             # 识别字典值为字典的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
@@ -390,6 +394,10 @@ def read_code(filename):
                 j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            #tmp2=[s.strip() for s in tmp2 if isinstance(s,str) else s]
             code[key][tmp]=dict(zip(tmp1,tmp2))
         # 识别其他的列表字段
         elif (tmp!='NULL') and (d[i,2]=='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
@@ -401,7 +409,11 @@ def read_code(filename):
             if i==len(d)-1:
                 code[key][tmp]=d[i,1]
             else:
-                code[key][tmp]=list(d[i:j,1])            
+                tmp2=list(d[i:j,1])
+                for i in range(len(tmp2)):
+                    if isinstance(tmp2[i],str):
+                        tmp2[i]=tmp2[i].strip()                
+                code[key][tmp]=tmp2             
         # 识别其他的字典字段
         elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
@@ -411,6 +423,10 @@ def read_code(filename):
                 j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            #tmp2=[s.strip() for s in tmp2 if isinstance(s,str)  else s]
             code[key][tmp]=dict(zip(tmp1,tmp2))
         elif tmp == 'NULL':
             continue
@@ -742,7 +758,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 
 
 
-def save_data(data,filename=u'data.xlsx',code=None):
+def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
     '''保存问卷数据到本地
     根据filename后缀选择相应的格式保存
     如果有code,则保存按文本数据
@@ -753,7 +769,7 @@ def save_data(data,filename=u'data.xlsx',code=None):
         for qq in code.keys():
             qtype=code[qq]['qtype']
             if qtype == u'单选题':
-                data1[qq].replace(code[qq]['code'],inplace=True)
+                data1[qq].replace(code[qq]['code'],inplace=True)            
             elif qtype == u'矩阵单选题':
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
     if (savetype == u'xlsx') or (savetype == u'xls'):
@@ -1518,6 +1534,7 @@ template=None):
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
@@ -1668,7 +1685,7 @@ significance_test=False, max_column_chart=20,template=None):
         特殊题型处理
         整体满意度题：后期归为数值类题型
         '''
-
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
@@ -1703,6 +1720,8 @@ significance_test=False, max_column_chart=20,template=None):
             plt_data=t*100
         else:
             plt_data=t.copy()
+        if (qtype in ['矩阵单选题']) and ('fw' in result_t):
+            plt_data=result_t['fw']
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
