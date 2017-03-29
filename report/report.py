@@ -905,6 +905,31 @@ def mca(X,N=2):
     w.save()
     '''
 
+
+def scatter(data):
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+    myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
+    fig, ax = plt.subplots()
+    ax.grid('on')
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none')
+    ax.axhline(y=0, linestyle='-', linewidth=1.2, alpha=0.6)
+    ax.axvline(x=0, linestyle='-', linewidth=1.2, alpha=0.6)
+    color=['blue','red','green','dark']
+    if not isinstance(data,list):
+        data=[data]
+    for i,dd in enumerate(data):     
+        ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
+                   label=dd.columns[1])
+        for _, row in dd.iterrows():
+            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
+    ax.axis('equal')
+    ax.legend(loc='best')
+    return fig, ax
+
+
+
 def sankey(df,filename=None):
     '''SanKey图绘制
     注:暂时没找到好的Python方法，所以只生成R语言所需数据
