@@ -592,8 +592,8 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         data为按序号的数据，题目都替换成了Q_n
         code为数据编码，可利用函数to_code()导出为json格式或者Excel格式数据
     '''
-    filepath='.\\data'
-    headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
+    #filepath='.\\data'
+    #headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
