@@ -592,29 +592,39 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         data为按序号的数据，题目都替换成了Q_n
         code为数据编码，可利用函数to_code()导出为json格式或者Excel格式数据
     '''
-    #headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
+    filepath='.\\data'
+    headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
     elif os.path.isdir(filepath):
         filelist=os.listdir(filepath)
+        n1=n2=0
         for f in filelist:
             s1=re.findall('\d+_\d+_0.xls',f)
             s2=re.findall('\d+_\d+_2.xls',f)
             if s1:
                 filename1=s1[0]
+                n1+=1
             if s2:
                 filename2=s2[0]
+                n2+=1
+        if n1+n2==0:
+            print(u'在文件夹下没有找到问卷星按序号和按文本数据，请检查目录或者工作目录.')
+            return
+        elif n1+n2>2:
+            print(u'存在多组问卷星数据，请检查.')
+            return
         filename1=os.path.join(filepath,filename1)
         filename2=os.path.join(filepath,filename2)
     else:
         print('can not dection the filepath!')
-
+    
     d1=pd.read_excel(filename1)
     d2=pd.read_excel(filename2)
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
     #d1.replace({u'(跳过)':np.nan},inplace=True)
-
+    
     code={}
     '''
     遍历一遍按文本数据，获取题号和每个题目的类型
@@ -686,15 +696,17 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
-                code[current_name]['code']=dict(zip(c2,c1))
+                #code[current_name]['code']=dict(zip(c2,c1))
                 if 'qlist_open' in code[current_name].keys():
                     tmp=d1[current_name].map(lambda x: re.findall('〖(.*?)〗',x)[0] if re.findall('〖(.*?)〗',x) else '')
-                    ind=np.argwhere(d2.columns.values==current_name).tolist()[0][0]
-                    d2.insert(ind+1,current_name+'_open',tmp)
-                    c1=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
+                    ind_open=np.argwhere(d2.columns.values==current_name).tolist()[0][0]
+                    d2.insert(ind_open+1,current_name+'_open',tmp)
+                    d1[current_name]=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x))
+                    #c1=d1.loc[ind,current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
                     code[current_name]['qlist_open']=[current_name+'_open']
-                code[current_name]['code']=dict(zip(c2,c1))
-
+                code[current_name]['code']=dict(zip(d2.loc[ind,current_name],d1.loc[ind,current_name]))
+                #code[current_name]['code']=dict(zip(c2,c1))
+    
         elif tmp2:
             name0='Q'+tmp2[0]
             # 新题第一个选项
