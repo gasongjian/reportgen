@@ -98,7 +98,7 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     '''
     R,C=df.shape
     width=max(0.5,min(1,C/6.0))*0.80
-    height=max(0.5,min(1,R/12.0))*0.70
+    height=max(0.5,min(1,R/12.0))*0.50
     left=0.5-width/2
     top=(1-height)*2/3
     left=Emu(left*slide_width)
@@ -239,7 +239,9 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     try:
         txBox.text_frame.fit_text(max_size=12)
     except:
-        log='cannot fit the size of font'
+        pass
+        #print('cannot fit the size of font')
+        
 
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
@@ -250,7 +252,8 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         try:
             txBox.text_frame.fit_text(max_size=10)
         except:
-            log='cannot fit the size of font'
+            pass
+            #print('cannot fit the size of font')
     chart_type_code=chart_list[chart_type][1]
     chart_data=df_to_chartdata(df,chart_type_code)
     x, y = Emu(0.05*slide_width), Emu(0.20*slide_height)
@@ -272,17 +275,17 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     try:
         chart.category_axis.tick_labels.font.size=font_default_size
     except:
-        unsuc=0#暂时不知道怎么处理
+        pass#暂时不知道怎么处理
     try:
         chart.value_axis.tick_labels.font.size=font_default_size
     except:
-        unsuc=0
+        pass
     # 添加数据标签
 
     non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER',\
     'XY_SCATTER_LINES','PIE']
     # 大致检测是否采用百分比
-    if (df.sum()>=80).any() and (df<=100).any().any():
+    if (df.sum()>=90).all() and (df.sum()<=110).all():
         # 数据条的数据标签格式
         number_format1='0.0"%"'
         # 坐标轴的数据标签格式
@@ -350,6 +353,17 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     width,height = Emu(0.7*slide_width), Emu(0.7*slide_height)
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
+
+
+#=================================================================
+#
+#
+#                    【问卷数据处理】
+#
+#
+#================================================================
+
+
 
 def read_code(filename):
     '''读取code编码文件并输出为字典格式
@@ -467,7 +481,7 @@ def save_code(code,filename='code.xlsx'):
                 try:
                     tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
                 except:
-                    tmp2_key=list(tmp2.keys())               
+                    tmp2_key=list(tmp2.keys())     
                 j=0
                 for key1 in tmp2_key:
                     if j==0:
@@ -767,6 +781,69 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 #
 #
 ## ==========================================================
+
+
+
+def data_auto_code(data):
+    '''智能判断问卷数据
+    输入
+    data: 数据框，列名需要满足Qi或者Qi_
+    输出：
+    code: 自动编码
+    '''
+    data=pd.DataFrame(data)
+    columns=data.columns
+    columns=[c for c in columns if re.match('Q\d+',c)]
+    code={}
+    for cc in columns:
+        # 识别题目号
+        if '_' not in cc:
+            key=cc
+        else:
+            key=cc.split('_')[0]
+        # 新的题目则产生新的code
+        if key not in code:
+            code[key]={}
+            code[key]['qlist']=[]
+            code[key]['code']={}
+            code[key]['content']=key
+            code[key]['qtype']=''
+        # 处理各题目列表
+        if key == cc:
+            code[key]['qlist']=[key]
+        elif re.findall('^'+key+'_[a-zA-Z]{0,}\d+$',cc):
+            code[key]['qlist'].append(cc)
+        else:
+            if 'qlist_open' in code[key]:
+                code[key]['qlist_open'].append(cc)
+            else:
+                code[key]['qlist_open']=[cc]
+    
+    for kk in code.keys():
+        dd=data[code[kk]['qlist']]
+        # 单选题和填空题
+        if len(dd.columns)==1:
+            tmp=dd[dd.notnull()].iloc[:,0].unique()
+            if dd.iloc[:,0].value_counts().mean() >=2:
+                code[kk]['qtype']=u'单选题'
+                code[kk]['code']=dict(zip(tmp,tmp))
+            else:
+                code[kk]['qtype']=u'填空题'
+                del code[kk]['code']
+        else:
+            tmp=set(dd[dd.notnull()].as_matrix().flatten())
+            if set(tmp)==set([0,1]):
+                code[kk]['qtype']=u'多选题'
+                code[kk]['code']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+            elif 'R' in code[kk]['qlist'][0]:
+                code[kk]['qtype']=u'矩阵单选题'
+                code[kk]['code_r']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+                code[kk]['code']=dict(zip(list(tmp),list(tmp)))
+            else:
+                code[kk]['qtype']=u'排序题'
+                code[kk]['code']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+    return code
+
 
 
 
@@ -1129,13 +1206,31 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     输入参数：
     data_index: 因变量，放在行中
     data_column:自变量，放在列中
-    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的
     code_index: dict格式，指定data_index的编码等信息
     code_column: dict格式，指定data_column的编码等信息
+    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的    
     返回字典格式数据
     'fop'：默认的百分比表，行是data_index,列是data_column
     'fo'：原始频数表，且添加了总体项
     'fw': 加权平均值
+    
+    简要说明：
+    因为要处理各类题型，这里将单选题处理为多选题
+    
+    fo：观察频数表
+    nij是同时选择了Ri和Cj的频数
+    总体的频数是选择了Ri的频数，与所在行的总和无关
+    行变量\列变量  C1 |C2 | C3| C4|总体
+             R1|  n11|n12|n13|n14|n1:
+             R2|  n21|n22|n23|n23|n2:
+             R3|  n31|n32|n33|n34|n3:
+     fop: 观察百分比表(列变量)
+     这里比较难处理，data_column各个类别的样本量和总体的样本量不一样，各类别的样本量为同时
+     选择了行变量和列类别的频数。而总体的样本量为选择了行变量的频数
+     fw: 加权平均值
+     如果data_index的编码code含有weight字段，则我们会输出分组的加权平均值
+  
+    
     '''
 
     # 将Series转为DataFrame格式
@@ -1170,13 +1265,12 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
         elif qtype2 == u'矩阵单选题':
             data_column.rename(columns=code_column['code_r'],inplace=True)
     if qtype:
-        qtype=list(qtype)
-        if len(qtype)==2:
+        #qtype=list(qtype)
+        if isinstance(qtype,list) and len(qtype)==2:
             qtype1=qtype[0]
             qtype2=qtype[1]
-        else:
-            qtype1=qtype[0]
-
+        elif isinstance(qtype,str):
+            qtype1=qtype
     if qtype1 == u'单选题':
         data_index=sa_to_ma(data_index)
         qtype1=u'多选题'
@@ -1188,10 +1282,10 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     # 准备工作
     index_list=list(data_index.columns)
     columns_list=list(data_column.columns)
-    # 次数频数表为同时选择
+    # 频数表/data_column各个类别的样本量
     column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
-    #column_freq=data_column.sum()
-    column_freq[u'总体']=column_freq.sum()
+    #column_freq[u'总体']=column_freq.sum()
+    column_freq[u'总体']=data_index.count()
     R=len(index_list)
     C=len(columns_list)
     result={}
@@ -1357,22 +1451,44 @@ def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None
     
     
 
-def qtable(data,code,q1=None,q2=None):
+def qtable(data,*args):
     '''简易频数统计函数
+    输入
+    data：数据框，可以是所有的数据
+    code:数据编码
+    q1: 题目序号
+    q2:题目序号
     # 单个变量的频数统计
     qtable(data,code,'Q1')
     # 两个变量的交叉统计
     qtable(data,code,'Q1','Q2')
     
     '''
+    code=None
+    q1=None
+    q2=None
+    for a in args:
+        if (isinstance(a,str)) and (not q1):
+            q1=a
+        elif (isinstance(a,str)) and (q1):
+            q2=a
+        elif isinstance(a,dict):
+            code=a
+    if not code:
+        code=data_auto_code(data)
+    if not q1:
+        print('please input the q1,such as Q1.')
+        return
     if q2 is None:
         result=table(data[code[q1]['qlist']],code[q1])
     else:
         result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
     return result
 
+
 def contingency(fo,alpha=0.05):
     ''' 列联表分析：(观察频数表分析)
+    # 预增加一个各类别之间的距离
     1、生成TGI指数、TWI指数、CHI指数
     2、独立性检验
     3、当两个变量不显著时，考虑单个之间的显著性
@@ -1409,6 +1525,9 @@ def contingency(fo,alpha=0.05):
         fo.drop([u'合计'],axis=0,inplace=True)
     fe=fo.copy()
     N=fo.sum().sum()
+    if N==0:
+        print('rpt.contingency:: fo的样本数为0,请检查数据')
+        return cdata
     for i in fe.index:
         for j in fe.columns:
             fe.loc[i,j]=fe.loc[i,:].sum()*fe.loc[:,j].sum()/float(N)
@@ -1484,9 +1603,8 @@ def contingency(fo,alpha=0.05):
 
 
 def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
-delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
-reverse_display=False,total_display=True,max_column_chart=20,save_dstyle=None,\
-template=None):
+delclass=None,plt_dstyle=None,cross_order=None,reverse_display=False,\
+total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
     '''使用帮助
     data: 问卷数据，包含交叉变量和所有的因变量
@@ -1498,7 +1616,6 @@ template=None):
     plt_dstyle: 绘制图表需要用的数据类型，默认为百分比表，可以选择['TGI'、'CHI'、'TWI']等
     save_dstyle: 需要保存的数据类型，格式为列表。
     cross_order: 交叉变量中各个类别的顺序，可以缺少
-    significance_test: 输出显著性校验结果，默认无
     total_display: PPT绘制图表中是否显示总体情况
     max_column_chart: 列联表的列数，小于则用柱状图，大于则用条形图
     template: PPT模板信息，{'path': 'layouts':}缺省用自带的。
@@ -1512,11 +1629,8 @@ template=None):
             cross_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
         except:
             cross_qlist=list(code.keys())
+    if cross_class in cross_qlist:
         cross_qlist.remove(cross_class)
-
-    if significance_test:
-        difference=dict(zip(cross_qlist,[-1]*len(cross_qlist)))
-        difference[cross_class]=-2 #-2就代表了是交叉题目
 
     # =================基本数据获取==========================
     #交叉分析的样本数统一为交叉变量的样本数
@@ -1586,11 +1700,14 @@ template=None):
             result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
         else:
             result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
-        t=result_t['fop']
-        t1=result_t['fo']
+        if ('fo' in result) and ('fop' in result):
+            t=result_t['fop']
+            t1=result_t['fo']
+        else:
+            continue
+        
         if t is None:
             continue
-
 
         # =======数据修正==============
         if cross_order and (not reverse_display):
@@ -1617,26 +1734,28 @@ template=None):
                 t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
-        t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
+        t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         #列联表分析
-        cdata=contingency(t1,alpha=0.05)
+        cdata=contingency(t1,alpha=0.05)# 修改容错率
         result[qq]=cdata
-        summary=cdata['summary']['summary']
-        if plt_dstyle:
+        if cdata:
+            summary=cdata['summary']['summary']
+            # 保存各个指标的数据
+            if save_dstyle:
+                for dstyle in save_dstyle:
+                    cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
+        if cdata and plt_dstyle:
             plt_data=cdata[plt_dstyle]
-        elif qtype in [u'单选题',u'多选题']:
+        elif qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
-
-        # 保存各个指标的数据
-        if save_dstyle:
-            for dstyle in save_dstyle:
-                cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
+        if (abs(1-plt_data.sum())<=0.01+1e-17).all():
+            plt_data=plt_data*100
 
         
         # ========================【特殊题型处理区】================================
@@ -1672,7 +1791,10 @@ template=None):
 
     # ========================文件生成和导出======================
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
-    prs.save('.\\out\\'+filename+u'.pptx')
+    try:
+        prs.save('.\\out\\'+filename+u'.pptx')
+    except:
+        prs.save('.\\out\\'+filename+u'_副本.pptx')            
     Writer.save()
     if save_dstyle:
         for dstyle in save_dstyle:
@@ -1681,7 +1803,7 @@ template=None):
 
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
-significance_test=False, max_column_chart=20,template=None):
+max_column_chart=20,template=None):
 
     # ===================参数预处理=======================
     if not summary_qlist:
@@ -1689,13 +1811,7 @@ significance_test=False, max_column_chart=20,template=None):
             summary_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
         except:
             summary_qlist=list(code.keys())
-
-    '''
-    if significance_test:
-        difference=dict(zip(cross_qlist,[-1]*len(cross_qlist)))
-        difference[cross_class]=-2 #-2就代表了是交叉题目
-    '''
-
+            
     # =================基本数据获取==========================
     #统一的有效样本，各个题目可能有不能的样本数
     sample_len=len(data)
@@ -1743,9 +1859,9 @@ significance_test=False, max_column_chart=20,template=None):
             t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
-        t2=pd.concat([t,t1],axis=1)
-
+        
         # =======保存到Excel中========
+        t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         '''显著性分析[暂缺]
@@ -1753,7 +1869,7 @@ significance_test=False, max_column_chart=20,template=None):
         '''
 
         # 数据再加工
-        if qtype in [u'单选题',u'多选题']:
+        if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
@@ -1764,7 +1880,7 @@ significance_test=False, max_column_chart=20,template=None):
         result[qq]=plt_data
         title=qq+': '+qtitle
         if (qtype in [u'单选题']) and 'fw' in result_t:
-            summary=u'这里是结论区域, 平均值为%s'%result_t['fw']
+            summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
         else:
             summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
@@ -1782,17 +1898,11 @@ significance_test=False, max_column_chart=20,template=None):
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
 
-
-
-
-    '''
-    # ==============小结页=====================
-    difference=pd.Series(difference,index=total_qlist_0)
-    '''
-
     # ========================文件生成和导出======================
-    #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
-    prs.save('.\\out\\'+filename+u'.pptx')
+    try:
+        prs.save('.\\out\\'+filename+u'.pptx')
+    except:
+        prs.save('.\\out\\'+filename+u'_副本.pptx')        
     Writer.save()
     return result
 

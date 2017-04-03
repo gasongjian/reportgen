@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Nov  8 20:05:36 2016
-@author: gason
+@author: JSong
 """
 '''
 pptx 用的单位是pptx.util.Emu,  英语单位
@@ -98,7 +98,7 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     '''
     R,C=df.shape
     width=max(0.5,min(1,C/6.0))*0.80
-    height=max(0.5,min(1,R/12.0))*0.70
+    height=max(0.5,min(1,R/12.0))*0.50
     left=0.5-width/2
     top=(1-height)*2/3
     left=Emu(left*slide_width)
@@ -239,7 +239,9 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     try:
         txBox.text_frame.fit_text(max_size=12)
     except:
-        log='cannot fit the size of font'
+        pass
+        #print('cannot fit the size of font')
+        
 
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
@@ -250,7 +252,8 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         try:
             txBox.text_frame.fit_text(max_size=10)
         except:
-            log='cannot fit the size of font'
+            pass
+            #print('cannot fit the size of font')
     chart_type_code=chart_list[chart_type][1]
     chart_data=df_to_chartdata(df,chart_type_code)
     x, y = Emu(0.05*slide_width), Emu(0.20*slide_height)
@@ -272,17 +275,17 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     try:
         chart.category_axis.tick_labels.font.size=font_default_size
     except:
-        unsuc=0#暂时不知道怎么处理
+        pass#暂时不知道怎么处理
     try:
         chart.value_axis.tick_labels.font.size=font_default_size
     except:
-        unsuc=0
+        pass
     # 添加数据标签
 
     non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER',\
     'XY_SCATTER_LINES','PIE']
     # 大致检测是否采用百分比
-    if (df.sum()>=80).any() and (df<=100).any().any():
+    if (df.sum()>=90).all() and (df.sum()<=110).all():
         # 数据条的数据标签格式
         number_format1='0.0"%"'
         # 坐标轴的数据标签格式
@@ -351,12 +354,22 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
 
+
+#=================================================================
+#
+#
+#                    【问卷数据处理】
+#
+#
+#================================================================
+
+
+
 def read_code(filename):
     '''读取code编码文件并输出为字典格式
     1、支持json格式
     2、支持本包规定的xlsx格式
     see alse to_code
-
     '''
     file_type=os.path.splitext(filename)[1][1:]
     if file_type == 'json':
@@ -371,16 +384,23 @@ def read_code(filename):
     for i in range(len(d)):
         tmp=d[i,0]
         if tmp == 'key':
+            # 识别题号
             code[d[i,1]]={}
             key=d[i,1]
         elif tmp in ['qlist','code_order']:
+            # 识别字典值为列表的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
             else:
                 j=len(d)-1
-            code[key][tmp]=list(d[i:j,1])
+            tmp2=list(d[i:j,1])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            code[key][tmp]=tmp2
         elif tmp in ['code','code_r']:
+            # 识别字典值为字典的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
@@ -388,22 +408,39 @@ def read_code(filename):
                 j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            #tmp2=[s.strip() for s in tmp2 if isinstance(s,str) else s]
             code[key][tmp]=dict(zip(tmp1,tmp2))
-        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]=='NULL'):
+        # 识别其他的列表字段
+        elif (tmp!='NULL') and (d[i,2]=='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
-            code[key][tmp]=list(d[i:j,1])
-        elif (tmp!='NULL') and (d[i+1,0]=='NULL') and (d[i,2]!='NULL'):
+                j=len(d)
+            if i==len(d)-1:
+                code[key][tmp]=d[i,1]
+            else:
+                tmp2=list(d[i:j,1])
+                for i in range(len(tmp2)):
+                    if isinstance(tmp2[i],str):
+                        tmp2[i]=tmp2[i].strip()                
+                code[key][tmp]=tmp2             
+        # 识别其他的字典字段
+        elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
             if ind.any():
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
+                j=len(d)
             tmp1=list(d[i:j,1])
             tmp2=list(d[i:j,2])
+            for i in range(len(tmp2)):
+                if isinstance(tmp2[i],str):
+                    tmp2[i]=tmp2[i].strip()
+            #tmp2=[s.strip() for s in tmp2 if isinstance(s,str)  else s]
             code[key][tmp]=dict(zip(tmp1,tmp2))
         elif tmp == 'NULL':
             continue
@@ -434,7 +471,6 @@ def save_code(code,filename='code.xlsx'):
         i+=1
         for key0 in code0:
             tmp2=code0[key0]
-            tmp.loc
             if type(tmp2) == list:
                 tmp.loc[i]=[key0,tmp2[0],'']
                 i+=1
@@ -443,9 +479,9 @@ def save_code(code,filename='code.xlsx'):
                     i+=1
             elif type(tmp2) == dict:
                 try:
-                    tmp2_key=sorted(tmp2)
+                    tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
                 except:
-                    tmp2_key=tmp2.keys()                 
+                    tmp2_key=list(tmp2.keys())     
                 j=0
                 for key1 in tmp2_key:
                     if j==0:
@@ -471,18 +507,16 @@ Qn.qtype: 题目类型，包含:单选题、多选题、填空题、排序题、
 Qn.qlist: 题目列表，例如多选题对应着很多小题目
 Qn.code: 题目选项编码
 Qn.code_r: 题目对应的编码(矩阵题目专有)
-Qn.code_order: 题目类别的顺序，用于PPT报告的生成
+Qn.code_order: 题目类别的顺序，用于PPT报告的生成[一般后期添加]
 Qn.name: 特殊类型，包含：城市题、NPS题等
 '''
 
-def wenjuanwang(filepath='.\\data'):
+def wenjuanwang(filepath='.\\data',encoding='gbk'):
     '''问卷网数据导入和编码
-
     输入：
     filepath:
         列表，[0]为按文本数据路径，[1]为按序号文本，[2]为编码文件
         文件夹路径，函数会自动在文件夹下搜寻相关数据
-
     输出：
     (data,code):
         data为按序号的数据，题目都替换成了Q_n
@@ -491,7 +525,7 @@ def wenjuanwang(filepath='.\\data'):
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
-        filename2=filepath[2]
+        filename3=filepath[2]
     elif os.path.isdir(filepath):
         filename1=os.path.join(filepath,'All_Data_Readable.csv')
         filename2=os.path.join(filepath,'All_Data_Original.csv')
@@ -499,11 +533,12 @@ def wenjuanwang(filepath='.\\data'):
     else:
         print('can not dection the filepath!')
 
-    d1=pd.read_csv(filename1,encoding='gbk')
+    d1=pd.read_csv(filename1,encoding=encoding)
     d1.drop([u'答题时长'],axis=1,inplace=True)
-    d2=pd.read_csv(filename2,encoding='gbk')
-    d3=pd.read_csv(filename3,encoding='gbk',header=None,na_filter=False)
+    d2=pd.read_csv(filename2,encoding=encoding)
+    d3=pd.read_csv(filename3,encoding=encoding,header=None,na_filter=False)
     d3=d3.as_matrix()
+    # 遍历code.csv,获取粗略的编码，暂缺qlist，矩阵单选题的code_r
     code={}
     for i in range(len(d3)):
         if d3[i,0]:
@@ -512,18 +547,30 @@ def wenjuanwang(filepath='.\\data'):
             code[key]['content']=d3[i,1]
             code[key]['qtype']=d3[i,2]
             code[key]['code']={}
+            code[key]['qlist']=[]
         elif d3[i,2]:
             tmp=d3[i,1]
             if code[key]['qtype']  in [u'多选题',u'排序题']:
                 tmp=key+'_A'+'%s'%(tmp)
                 code[key]['code'][tmp]='%s'%(d3[i,2])
+                code[key]['qlist'].append(tmp)
+            elif code[key]['qtype']  in [u'单选题']:
+                try:
+                    tmp=int(tmp)
+                except:
+                    tmp='%s'%(tmp)
+                code[key]['code'][tmp]='%s'%(d3[i,2])
+                code[key]['qlist']=[key]
+            elif code[key]['qtype']  in [u'填空题']:
+                code[key]['qlist']=[key]
             else:
                 try:
-                    tmp=np.float(tmp)
+                    tmp=int(tmp)
                 except:
                     tmp='%s'%(tmp)
                 code[key]['code'][tmp]='%s'%(d3[i,2])
 
+    # 更新矩阵单选的code_r和qlist
     qnames_Readable=list(d1.columns)
     qnames=list(d2.columns)
     for key in code.keys():
@@ -531,55 +578,67 @@ def wenjuanwang(filepath='.\\data'):
         for name in qnames:
             if re.match(key+'_',name) or key==name:
                 qlist.append(name)
-        code[key]['qlist']=qlist
-        code[key]['code_r']={}
+        if ('qlist' not in code[key]) or (not code[key]['qlist']):
+            code[key]['qlist']=qlist
         if code[key]['qtype']  in [u'矩阵单选题']:
             tmp=[qnames_Readable[qnames.index(q)] for q in code[key]['qlist']]
             code_r=[re.findall('_([^_]*?)$',t)[0] for t in tmp]
             code[key]['code_r']=dict(zip(code[key]['qlist'],code_r))
+    # 处理时间格式
+    d2['start']=pd.to_datetime(d2['start'])
+    d2['finish']=pd.to_datetime(d2['finish'])
+    tmp=d2['finish']-d2['start']
+    tmp=tmp.astype(str).map(lambda x:60*int(re.findall(':(\d+):',x)[0])+int(re.findall(':(\d+)\.',x)[0]))
+    ind=np.where(d2.columns=='finish')[0][0]
+    d2.insert(int(ind)+1,u'答题时长(秒)',tmp)
     return (d2,code)
 
 
 def wenjuanxing(filepath='.\\data',headlen=6):
     '''问卷星数据导入和编码
-
     输入：
     filepath:
         列表，[0]为按文本数据路径，[1]为按序号文本
         文件夹路径，函数会自动在文件夹下搜寻相关数据，优先为\d+_\d+_0.xls和\d+_\d+_2.xls
     headlen: 问卷星数据基础信息的列数
-
     输出：
     (data,code):
         data为按序号的数据，题目都替换成了Q_n
         code为数据编码，可利用函数to_code()导出为json格式或者Excel格式数据
     '''
+    #filepath='.\\data'
     #headlen=6# 问卷从开始到第一道正式题的数目（一般包含序号，提交答卷时间的等等）
     if isinstance(filepath,list):
         filename1=filepath[0]
         filename2=filepath[1]
     elif os.path.isdir(filepath):
         filelist=os.listdir(filepath)
-        if ('All_Data_Readable.xls' in filelist) and ('All_Data_Original.xls' in filelist):
-            filename1='All_Data_Readable.xls'
-            filename2='All_Data_Original.xls'
+        n1=n2=0
         for f in filelist:
             s1=re.findall('\d+_\d+_0.xls',f)
             s2=re.findall('\d+_\d+_2.xls',f)
             if s1:
                 filename1=s1[0]
+                n1+=1
             if s2:
                 filename2=s2[0]
+                n2+=1
+        if n1+n2==0:
+            print(u'在文件夹下没有找到问卷星按序号和按文本数据，请检查目录或者工作目录.')
+            return
+        elif n1+n2>2:
+            print(u'存在多组问卷星数据，请检查.')
+            return
         filename1=os.path.join(filepath,filename1)
         filename2=os.path.join(filepath,filename2)
     else:
         print('can not dection the filepath!')
-
-    d1=pd.read_excel(filename1,encoding='gbk')
-    d2=pd.read_excel(filename2,encoding='gbk')
+    
+    d1=pd.read_excel(filename1)
+    d2=pd.read_excel(filename2)
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
     #d1.replace({u'(跳过)':np.nan},inplace=True)
-
+    
     code={}
     '''
     遍历一遍按文本数据，获取题号和每个题目的类型
@@ -651,15 +710,17 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
-                code[current_name]['code']=dict(zip(c2,c1))
+                #code[current_name]['code']=dict(zip(c2,c1))
                 if 'qlist_open' in code[current_name].keys():
                     tmp=d1[current_name].map(lambda x: re.findall('〖(.*?)〗',x)[0] if re.findall('〖(.*?)〗',x) else '')
-                    ind=np.argwhere(d2.columns.values==current_name).tolist()[0][0]
-                    d2.insert(ind+1,current_name+'_open',tmp)
-                    c1=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
+                    ind_open=np.argwhere(d2.columns.values==current_name).tolist()[0][0]
+                    d2.insert(ind_open+1,current_name+'_open',tmp)
+                    d1[current_name]=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x))
+                    #c1=d1.loc[ind,current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
                     code[current_name]['qlist_open']=[current_name+'_open']
-                code[current_name]['code']=dict(zip(c2,c1))
-
+                code[current_name]['code']=dict(zip(d2.loc[ind,current_name],d1.loc[ind,current_name]))
+                #code[current_name]['code']=dict(zip(c2,c1))
+    
         elif tmp2:
             name0='Q'+tmp2[0]
             # 新题第一个选项
@@ -696,9 +757,13 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[current_name]['code'][name1]=tmp3
             # 识别开放题
             if (code[current_name]['qtype'] == u'多选题'):
+                openq=tmp3+'〖.*?〗'
+                openq=re.sub('\)','\)',openq)
+                openq=re.sub('\(','\(',openq)
+                openq=re.compile(openq)
                 qcontent=str(list(d1[current_name]))
-                if re.findall(tmp3+'〖.*?〗',qcontent):
-                    tmp=d1[current_name].map(lambda x: re.findall(tmp3+'〖(.*?)〗',x)[0] if re.findall(tmp3+'〖(.*?)〗',x) else '')
+                if re.findall(openq,qcontent):
+                    tmp=d1[current_name].map(lambda x: re.findall(openq,x)[0] if re.findall(openq,x) else '')
                     ind=np.argwhere(d2.columns.values==name1).tolist()[0][0]
                     d2.insert(ind+1,name1+'_open',tmp)
                     code[current_name]['qlist_open'].append(name1+'_open')
@@ -719,7 +784,70 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 
 
 
-def save_data(data,filename=u'data.xlsx',code=None):
+def data_auto_code(data):
+    '''智能判断问卷数据
+    输入
+    data: 数据框，列名需要满足Qi或者Qi_
+    输出：
+    code: 自动编码
+    '''
+    data=pd.DataFrame(data)
+    columns=data.columns
+    columns=[c for c in columns if re.match('Q\d+',c)]
+    code={}
+    for cc in columns:
+        # 识别题目号
+        if '_' not in cc:
+            key=cc
+        else:
+            key=cc.split('_')[0]
+        # 新的题目则产生新的code
+        if key not in code:
+            code[key]={}
+            code[key]['qlist']=[]
+            code[key]['code']={}
+            code[key]['content']=key
+            code[key]['qtype']=''
+        # 处理各题目列表
+        if key == cc:
+            code[key]['qlist']=[key]
+        elif re.findall('^'+key+'_[a-zA-Z]{0,}\d+$',cc):
+            code[key]['qlist'].append(cc)
+        else:
+            if 'qlist_open' in code[key]:
+                code[key]['qlist_open'].append(cc)
+            else:
+                code[key]['qlist_open']=[cc]
+    
+    for kk in code.keys():
+        dd=data[code[kk]['qlist']]
+        # 单选题和填空题
+        if len(dd.columns)==1:
+            tmp=dd[dd.notnull()].iloc[:,0].unique()
+            if dd.iloc[:,0].value_counts().mean() >=2:
+                code[kk]['qtype']=u'单选题'
+                code[kk]['code']=dict(zip(tmp,tmp))
+            else:
+                code[kk]['qtype']=u'填空题'
+                del code[kk]['code']
+        else:
+            tmp=set(dd[dd.notnull()].as_matrix().flatten())
+            if set(tmp)==set([0,1]):
+                code[kk]['qtype']=u'多选题'
+                code[kk]['code']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+            elif 'R' in code[kk]['qlist'][0]:
+                code[kk]['qtype']=u'矩阵单选题'
+                code[kk]['code_r']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+                code[kk]['code']=dict(zip(list(tmp),list(tmp)))
+            else:
+                code[kk]['qtype']=u'排序题'
+                code[kk]['code']=dict(zip(code[kk]['qlist'],code[kk]['qlist']))
+    return code
+
+
+
+
+def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
     '''保存问卷数据到本地
     根据filename后缀选择相应的格式保存
     如果有code,则保存按文本数据
@@ -730,7 +858,7 @@ def save_data(data,filename=u'data.xlsx',code=None):
         for qq in code.keys():
             qtype=code[qq]['qtype']
             if qtype == u'单选题':
-                data1[qq].replace(code[qq]['code'],inplace=True)
+                data1[qq].replace(code[qq]['code'],inplace=True)            
             elif qtype == u'矩阵单选题':
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
     if (savetype == u'xlsx') or (savetype == u'xls'):
@@ -775,11 +903,25 @@ def binomial_interval(p,n,alpha=0.05):
     b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
     return (a,b)
 
-def gof_test(fo,fe,alpha=0.05):
+def gof_test(fo,fe=None,alpha=0.05):
+    '''拟合优度检验
+    输入：
+    fo:观察频数
+    fe:期望频数，缺省为平均数
+    返回：
+    1: 样本与总体有差异
+    0：样本与总体无差异
+    例子：
+    gof_test(np.array([0.3,0.4,0.3])*222)
+    '''
     import scipy.stats as stats
     fo=np.array(fo).flatten()
-    fe=np.array(fe).flatten()
     C=len(fo)
+    if not fe:
+        N=fo.sum() 
+        fe=np.array([N/C]*C)
+    else:
+        fe=np.array(fe).flatten()    
     chi_value=(fo-fe)**2/fe
     chi_value=chi_value.sum()
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
@@ -820,7 +962,11 @@ def fisher_exact(fo,alpha=0.05):
     return (result,p_value)
     
     
-def mca(X):
+def mca(X,N=2):
+    '''对应分析函数，暂时支持双因素
+    X：观察频数表
+    N：返回的维数，默认2维
+    '''
     from scipy.linalg import diagsvd
     S = X.sum().sum()
     Z = X / S  # correspondence matrix
@@ -832,19 +978,167 @@ def mca(X):
     
     # another option, not pursued here, is sklearn.decomposition.TruncatedSVD
     P,s,Q = np.linalg.svd(np.dot(np.dot(D_r, Z_c),D_c))
-    S=diagsvd(s[:2],P.shape[0],2)
-    pr=np.dot(np.dot(D_r,P),S)
-    pc=np.dot(np.dot(D_c,Q.T),S)
+    #S=diagsvd(s[:2],P.shape[0],2)
+    pr=np.dot(np.dot(D_r,P),diagsvd(s[:N],P.shape[0],N))
+    pc=np.dot(np.dot(D_c,Q.T),diagsvd(s[:N],Q.shape[0],N))
     inertia=np.cumsum(s**2)/np.sum(s**2)
     inertia=inertia.tolist()
     if isinstance(X,pd.DataFrame):
-        pr=pd.DataFrame(pr,index=X.index,columns=['X','Y'])
-        pc=pd.DataFrame(pc,index=X.columns,columns=['X','Y'])
+        pr=pd.DataFrame(pr,index=X.index,columns=list('XYZUVW')[:N])
+        pc=pd.DataFrame(pc,index=X.columns,columns=list('XYZUVW')[:N])
     return pr,pc,inertia
-    
+    '''
+    w=pd.ExcelWriter(u'mca_.xlsx')
+    pr.to_excel(w,startrow=0,index_label=True)
+    pc.to_excel(w,startrow=len(pr)+2,index_label=True)
+    w.save()
+    '''
+
+
+def scatter(data):
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+    myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
+    fig, ax = plt.subplots()
+    ax.grid('on')
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none')
+    ax.axhline(y=0, linestyle='-', linewidth=1.2, alpha=0.6)
+    ax.axvline(x=0, linestyle='-', linewidth=1.2, alpha=0.6)
+    color=['blue','red','green','dark']
+    if not isinstance(data,list):
+        data=[data]
+    for i,dd in enumerate(data):     
+        ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
+                   label=dd.columns[1])
+        for _, row in dd.iterrows():
+            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
+    ax.axis('equal')
+    ax.legend(loc='best')
+    return fig, ax
+
+
+
+def sankey(df,filename=None):
+    '''SanKey图绘制
+    注:暂时没找到好的Python方法，所以只生成R语言所需数据
+    返回links 和 nodes
+    # R code 参考
+    library(networkD3)
+    dd=read.csv('price_links.csv')
+    links<-data.frame(source=dd$from,target=dd$to,value=dd$value)
+    nodes=read.csv('price_nodes.csv',header = FALSE)
+    names(nodes)='name'
+    Energy=c(links=links,nodes=nodes)
+    sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
+                  Target = "target", Value = "value", NodeID = "name",
+                  units = "TWh",fontSize = 18,fontFamily='微软雅黑',nodeWidth=20) 
+    '''
+    nodes=['Total']
+    nodes=nodes+list(df.columns)+list(df.index)
+    nodes=pd.Series(nodes)
+    R,C=df.shape
+    t1=pd.DataFrame(df.as_matrix(),columns=range(1,C+1),index=range(C+1,R+C+1))
+    t1.index.name='to'
+    t1.columns.name='from'
+    links=t1.unstack().reset_index(name='value')
+    links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
+    links=links0.append(links)   
+    if filename:
+        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
+        nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
+    return (links,nodes)
+
 
 def table(data,code):
     '''
+    单个题目描述统计
+    code是data的编码，列数大于1
+    返回字典格式数据：
+    'fop'：百分比, 对于单选题和为1，多选题分母为样本数
+    'fo'： 观察频数表，其中添加了合计项
+    'fw':  加权频数表，可实现平均值、T2B等功能，仅当code中存在关键词'weight'时才有
+    '''
+    # 单选题
+    qtype=code['qtype']
+    index=code['qlist']
+    data=pd.DataFrame(data)
+    sample_len=data[code['qlist']].notnull().T.any().sum()
+    result={}
+    if qtype == u'单选题':
+        fo=data.iloc[:,0].value_counts()
+        if 'weight' in code:
+            w=pd.Series(code['weight'])
+            fo1=fo[w.index][fo[w.index].notnull()]
+            fw=(fo1*w).sum()/fo1.sum()
+            result['fw']=fw
+        fo.sort_values(ascending=False,inplace=True)
+        fop=fo.copy()
+        fop=fop/fop.sum()*1.0
+        fop[u'合计']=fop.sum()
+        fo[u'合计']=fo.sum()        
+        fop.rename(index=code['code'],inplace=True)
+        fo.rename(index=code['code'],inplace=True)
+        fop.name=u'占比'
+        fo.name=u'频数'
+        fop=pd.DataFrame(fop)
+        fo=pd.DataFrame(fo)
+        result['fo']=fo
+        result['fop']=fop
+    elif qtype == u'多选题':
+        fo=data.sum()
+        fo.sort_values(ascending=False,inplace=True)
+        fo[u'合计']=fo.sum()
+        fo.rename(index=code['code'],inplace=True)
+        fop=fo.copy()
+        fop=fop/sample_len
+        fop.name=u'占比'
+        fo.name=u'频数'   
+        fop=pd.DataFrame(fop)
+        fo=pd.DataFrame(fo)
+        result['fop']=fop
+        result['fo']=fo           
+    elif qtype == u'矩阵单选题':
+        fo=pd.DataFrame(columns=code['qlist'],index=sorted(code['code']))
+        for i in fo.columns:
+            fo.loc[:,i]=data[i].value_counts()
+        if 'weight' in code:
+            fw=pd.DataFrame(columns=[u'加权'],index=code['qlist'])
+            w=pd.Series(code['weight'])
+            for c in fo.columns:
+                t=fo[c]
+                t=t[w.index][t[w.index].notnull()]
+                fw.loc[c,u'加权']=(t*w).sum()/t.sum()
+            fw.rename(index=code['code_r'],inplace=True)
+            result['fw']=fw
+        fo.rename(columns=code['code_r'],index=code['code'],inplace=True)
+        fop=fo.copy()
+        fop=fop/sample_len
+        result['fop']=fop
+        result['fo']=fo
+    elif qtype == u'排序题':
+        #提供综合统计和TOP1值统计
+        # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
+        topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
+        top1=data.applymap(lambda x:int(x==1))
+        data.replace(qsort,inplace=True)
+        t1=pd.DataFrame()
+        t1['TOP1']=top1.sum()
+        t1[u'综合']=data.sum()
+        t1.sort_values(by=u'综合',ascending=False,inplace=True)
+        t1.rename(index=code['code'],inplace=True)
+        t=t1.copy()
+        t=t/sample_len
+        result['fop']=t
+        result['fo']=t1
+    else:
+        result['fop']=None
+        result['fo']=None
+    return result   
+
+def ntable(data,code):
+    '''【后期将删除】
     单个题目描述统计
     code是data的编码，列数大于1
     返回两个数据：
@@ -909,6 +1203,148 @@ def table(data,code):
 
 def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
     '''适用于问卷数据的交叉统计
+    输入参数：
+    data_index: 因变量，放在行中
+    data_column:自变量，放在列中
+    code_index: dict格式，指定data_index的编码等信息
+    code_column: dict格式，指定data_column的编码等信息
+    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的    
+    返回字典格式数据
+    'fop'：默认的百分比表，行是data_index,列是data_column
+    'fo'：原始频数表，且添加了总体项
+    'fw': 加权平均值
+    
+    简要说明：
+    因为要处理各类题型，这里将单选题处理为多选题
+    
+    fo：观察频数表
+    nij是同时选择了Ri和Cj的频数
+    总体的频数是选择了Ri的频数，与所在行的总和无关
+    行变量\列变量  C1 |C2 | C3| C4|总体
+             R1|  n11|n12|n13|n14|n1:
+             R2|  n21|n22|n23|n23|n2:
+             R3|  n31|n32|n33|n34|n3:
+     fop: 观察百分比表(列变量)
+     这里比较难处理，data_column各个类别的样本量和总体的样本量不一样，各类别的样本量为同时
+     选择了行变量和列类别的频数。而总体的样本量为选择了行变量的频数
+     fw: 加权平均值
+     如果data_index的编码code含有weight字段，则我们会输出分组的加权平均值
+  
+    
+    '''
+
+    # 将Series转为DataFrame格式
+    data_index=pd.DataFrame(data_index)
+    data_column=pd.DataFrame(data_column)
+
+    # 获取行/列变量的题目类型
+    #  默认值
+    if data_index.shape[1]==1:
+        qtype1=u'单选题'
+    else:
+        qtype1=u'多选题'
+    if data_column.shape[1]==1:
+        qtype2=u'单选题'
+    else:
+        qtype2=u'多选题'
+    #  根据参数修正
+    if code_index:
+        qtype1=code_index['qtype']
+        if qtype1 == u'单选题':
+            data_index.replace(code_index['code'],inplace=True)
+        elif qtype1 in [u'多选题',u'排序题']:
+            data_index.rename(columns=code_index['code'],inplace=True)
+        elif qtype1 == u'矩阵单选题':
+            data_index.rename(columns=code_index['code_r'],inplace=True)
+    if code_column:
+        qtype2=code_column['qtype']
+        if qtype2 == u'单选题':
+            data_column.replace(code_column['code'],inplace=True)
+        elif qtype2 in [u'多选题',u'排序题']:
+            data_column.rename(columns=code_column['code'],inplace=True)
+        elif qtype2 == u'矩阵单选题':
+            data_column.rename(columns=code_column['code_r'],inplace=True)
+    if qtype:
+        #qtype=list(qtype)
+        if isinstance(qtype,list) and len(qtype)==2:
+            qtype1=qtype[0]
+            qtype2=qtype[1]
+        elif isinstance(qtype,str):
+            qtype1=qtype
+    if qtype1 == u'单选题':
+        data_index=sa_to_ma(data_index)
+        qtype1=u'多选题'
+    # 将单选题变为多选题
+    if qtype2 == u'单选题':
+        data_column=sa_to_ma(data_column)
+        qtype2=u'多选题'
+
+    # 准备工作
+    index_list=list(data_index.columns)
+    columns_list=list(data_column.columns)
+    # 频数表/data_column各个类别的样本量
+    column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
+    #column_freq[u'总体']=column_freq.sum()
+    column_freq[u'总体']=data_index.count()
+    R=len(index_list)
+    C=len(columns_list)
+    result={}
+    if (qtype1 == u'多选题') and (qtype2 == u'多选题'):
+        data_index.fillna(0,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        if code_index and ('weight' in code_index):
+            w=pd.Series(code_index['weight'])
+            w.rename(index=code_index['code'],inplace=True)
+            fw=pd.DataFrame(columns=[u'加权'],index=t.columns)
+            for c in t.columns:
+                tmp=t[c]
+                tmp=tmp[w.index][tmp[w.index].notnull()]
+                fw.loc[c,u'加权']=(tmp*w).sum()/tmp.sum()
+            fo1=data_index.sum()[w.index][data_index.sum()[w.index].notnull()]
+            fw.loc[u'总体',u'加权']=(fo1*w).sum()/fo1.sum()
+            result['fw']=fw
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+        result['fop']=t
+        result['fo']=t1              
+    elif (qtype1 == u'矩阵单选题') and (qtype2 == u'多选题'):
+        if code_index and ('weight' in code_index):
+            data_index.replace(code_index['weight'],inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t=pd.DataFrame(np.dot(t,np.diag(1/data_column.sum())))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.mean()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        result['fop']=t
+        result['fo']=t1
+    elif (qtype1 == u'排序题') and (qtype2 == u'多选题'):
+        topn=int(data_index.max().max())
+        #topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index_list])
+        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
+        data_index.replace(qsort,inplace=True)
+        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        t[u'总体']=data_index.sum()
+        t.sort_values([u'总体'],ascending=False,inplace=True)
+        t1=t.copy()
+        for i in t.columns:
+            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+        result['fop']=t
+        result['fo']=t1              
+    else:
+        result['fop']=None
+        result['fo']=None
+    return result
+
+
+
+def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
+    '''适用于问卷数据的交叉统计【后期将删除】
     输入参数：
     data_index: 因变量，放在行中
     data_column:自变量，放在列中
@@ -1015,22 +1451,44 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     
     
 
-def qtable(data,code,q1=None,q2=None):
+def qtable(data,*args):
     '''简易频数统计函数
+    输入
+    data：数据框，可以是所有的数据
+    code:数据编码
+    q1: 题目序号
+    q2:题目序号
     # 单个变量的频数统计
     qtable(data,code,'Q1')
     # 两个变量的交叉统计
     qtable(data,code,'Q1','Q2')
     
     '''
+    code=None
+    q1=None
+    q2=None
+    for a in args:
+        if (isinstance(a,str)) and (not q1):
+            q1=a
+        elif (isinstance(a,str)) and (q1):
+            q2=a
+        elif isinstance(a,dict):
+            code=a
+    if not code:
+        code=data_auto_code(data)
+    if not q1:
+        print('please input the q1,such as Q1.')
+        return
     if q2 is None:
-        t,t1=table(data[code[q1]['qlist']],code[q1])
+        result=table(data[code[q1]['qlist']],code[q1])
     else:
-        t,t1=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
-    return (t,t1)
+        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
+    return result
+
 
 def contingency(fo,alpha=0.05):
     ''' 列联表分析：(观察频数表分析)
+    # 预增加一个各类别之间的距离
     1、生成TGI指数、TWI指数、CHI指数
     2、独立性检验
     3、当两个变量不显著时，考虑单个之间的显著性
@@ -1067,6 +1525,9 @@ def contingency(fo,alpha=0.05):
         fo.drop([u'合计'],axis=0,inplace=True)
     fe=fo.copy()
     N=fo.sum().sum()
+    if N==0:
+        print('rpt.contingency:: fo的样本数为0,请检查数据')
+        return cdata
     for i in fe.index:
         for j in fe.columns:
             fe.loc[i,j]=fe.loc[i,:].sum()*fe.loc[:,j].sum()/float(N)
@@ -1142,9 +1603,8 @@ def contingency(fo,alpha=0.05):
 
 
 def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
-delclass=None,plt_dstyle=None,cross_order=None, significance_test=False, \
-reverse_display=False,total_display=True,max_column_chart=20,save_dstyle=None,\
-template=None):
+delclass=None,plt_dstyle=None,cross_order=None,reverse_display=False,\
+total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
     '''使用帮助
     data: 问卷数据，包含交叉变量和所有的因变量
@@ -1156,7 +1616,6 @@ template=None):
     plt_dstyle: 绘制图表需要用的数据类型，默认为百分比表，可以选择['TGI'、'CHI'、'TWI']等
     save_dstyle: 需要保存的数据类型，格式为列表。
     cross_order: 交叉变量中各个类别的顺序，可以缺少
-    significance_test: 输出显著性校验结果，默认无
     total_display: PPT绘制图表中是否显示总体情况
     max_column_chart: 列联表的列数，小于则用柱状图，大于则用条形图
     template: PPT模板信息，{'path': 'layouts':}缺省用自带的。
@@ -1170,11 +1629,8 @@ template=None):
             cross_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
         except:
             cross_qlist=list(code.keys())
+    if cross_class in cross_qlist:
         cross_qlist.remove(cross_class)
-
-    if significance_test:
-        difference=dict(zip(cross_qlist,[-1]*len(cross_qlist)))
-        difference[cross_class]=-2 #-2就代表了是交叉题目
 
     # =================基本数据获取==========================
     #交叉分析的样本数统一为交叉变量的样本数
@@ -1195,8 +1651,9 @@ template=None):
         #data.rename(columns=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=[code[cross_class]['code'][k] for k in code[cross_class]['qlist']]
     elif code[cross_class]['qtype'] == u'排序题':
-        tmp,tmp1=table(data[code[cross_class]['qlist']],code[cross_class])
-        cross_class_freq=tmp1[u'综合']
+        tmp=qtable(data,code,cross_class)
+        #tmp,tmp1=table(data[code[cross_class]['qlist']],code[cross_class])
+        cross_class_freq=tmp['fo'][u'综合']
         cross_class_freq[u'合计']=cross_class_freq.sum()
 
 
@@ -1228,6 +1685,7 @@ template=None):
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
@@ -1239,13 +1697,17 @@ template=None):
             continue
         # 交叉统计
         if reverse_display:
-            t,t1=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
+            result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
         else:
-            t,t1=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
-
+            result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+        if ('fo' in result) and ('fop' in result):
+            t=result_t['fop']
+            t1=result_t['fo']
+        else:
+            continue
+        
         if t is None:
             continue
-
 
         # =======数据修正==============
         if cross_order and (not reverse_display):
@@ -1259,7 +1721,7 @@ template=None):
             t=pd.DataFrame(t,index=cross_order)
             t1=pd.DataFrame(t1,index=cross_order)
         if 'code_order' in code[qq]:
-            code_order=code[qq]['code_order']            
+            code_order=code[qq]['code_order']         
             if reverse_display:
                 #code_order=[q for q in code_order if q in t.columns]
                 if u'总体' in t1.columns:
@@ -1272,33 +1734,39 @@ template=None):
                 t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
-        t2=pd.concat([t,t1],axis=1)
 
         # =======保存到Excel中========
+        t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         #列联表分析
-        cdata=contingency(t1,alpha=0.05)
+        cdata=contingency(t1,alpha=0.05)# 修改容错率
         result[qq]=cdata
-        summary=cdata['summary']['summary']
-        if plt_dstyle:
+        if cdata:
+            summary=cdata['summary']['summary']
+            # 保存各个指标的数据
+            if save_dstyle:
+                for dstyle in save_dstyle:
+                    cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
+        if cdata and plt_dstyle:
             plt_data=cdata[plt_dstyle]
-        elif qtype in [u'单选题',u'多选题']:
+        elif qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
+        if (abs(1-plt_data.sum())<=0.01+1e-17).all():
+            plt_data=plt_data*100
 
-        # 保存各个指标的数据
-        if save_dstyle:
-            for dstyle in save_dstyle:
-                cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
-
-        '''
+        
         # ========================【特殊题型处理区】================================
-        if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
-            title=u'整体满意度'
-        continue
-        '''
+        if 'fw' in result_t:
+            plt_data=result_t['fw']
+            if cross_order and (not reverse_display):
+                if u'总体' not in cross_order:
+                    cross_order=cross_order+[u'总体']
+                cross_order=[q for q in cross_order if q in plt_data.index]
+                plt_data=pd.DataFrame(plt_data,index=cross_order)
+        
         # 绘制PPT
         title=qq+': '+qtitle
         if not summary:
@@ -1323,7 +1791,10 @@ template=None):
 
     # ========================文件生成和导出======================
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
-    prs.save('.\\out\\'+filename+u'.pptx')
+    try:
+        prs.save('.\\out\\'+filename+u'.pptx')
+    except:
+        prs.save('.\\out\\'+filename+u'_副本.pptx')            
     Writer.save()
     if save_dstyle:
         for dstyle in save_dstyle:
@@ -1332,7 +1803,7 @@ template=None):
 
 
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
-significance_test=False, max_column_chart=20,template=None):
+max_column_chart=20,template=None):
 
     # ===================参数预处理=======================
     if not summary_qlist:
@@ -1340,13 +1811,7 @@ significance_test=False, max_column_chart=20,template=None):
             summary_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
         except:
             summary_qlist=list(code.keys())
-
-    '''
-    if significance_test:
-        difference=dict(zip(cross_qlist,[-1]*len(cross_qlist)))
-        difference[cross_class]=-2 #-2就代表了是交叉题目
-    '''
-
+            
     # =================基本数据获取==========================
     #统一的有效样本，各个题目可能有不能的样本数
     sample_len=len(data)
@@ -1373,14 +1838,16 @@ significance_test=False, max_column_chart=20,template=None):
         特殊题型处理
         整体满意度题：后期归为数值类题型
         '''
-
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
-        t,t1=table(data[qlist],code=code[qq])
+        result_t=table(data[qlist],code=code[qq])
+        t=result_t['fop']
+        t1=result_t['fo']
 
         # =======数据修正==============
         if 'code_order' in code[qq]:
@@ -1392,57 +1859,50 @@ significance_test=False, max_column_chart=20,template=None):
             t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
-        t2=pd.concat([t,t1],axis=1)
-
+        
         # =======保存到Excel中========
+        t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
 
         '''显著性分析[暂缺]
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
         '''
 
-
-
-        '''
-        # ========================【特殊题型处理区】================================
-        if ('name' in code[qq].keys()) and code[qq]['name'] in [u'满意度','satisfaction']:
-            title=u'整体满意度'
-        '''
         # 数据再加工
-        if qtype in [u'单选题',u'多选题']:
+        if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
+        if (qtype in ['矩阵单选题']) and ('fw' in result_t):
+            plt_data=result_t['fw']
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
         title=qq+': '+qtitle
-        summary=u'这里是结论区域.'
+        if (qtype in [u'单选题']) and 'fw' in result_t:
+            summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
+        else:
+            summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
         }
+        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是dataFrame
         if len(t)>max_column_chart:
             plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
-        elif len(t)>3:
+        elif (len(t)>3) or (len(plt_data.shape)>1 and plt_data.shape[1]>1):
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
         else:
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
 
-
-
-
-    '''
-    # ==============小结页=====================
-    difference=pd.Series(difference,index=total_qlist_0)
-    '''
-
     # ========================文件生成和导出======================
-    #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
-    prs.save('.\\out\\'+filename+u'.pptx')
+    try:
+        prs.save('.\\out\\'+filename+u'.pptx')
+    except:
+        prs.save('.\\out\\'+filename+u'_副本.pptx')        
     Writer.save()
     return result
 
