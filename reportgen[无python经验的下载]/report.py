@@ -469,15 +469,16 @@ def save_code(code,filename='code.xlsx'):
         code0=code[key]
         tmp.loc[i]=['key',key,'']
         i+=1
+        #print(key)
         for key0 in code0:
             tmp2=code0[key0]
-            if type(tmp2) == list:
+            if (type(tmp2) == list) and tmp2:
                 tmp.loc[i]=[key0,tmp2[0],'']
                 i+=1
                 for ll in tmp2[1:]:
                     tmp.loc[i]=['',ll,'']
                     i+=1
-            elif type(tmp2) == dict:
+            elif (type(tmp2) == dict) and tmp2:
                 try:
                     tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
                 except:
@@ -772,6 +773,22 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         for key in keys:
             if '%s'%key == 'nan':
                 del  code[current_name]['code'][key]
+    
+    # 处理一些特殊题目，如年龄、收入等
+    for k in code.keys():
+        if ('code' in code[k]) and code[k]['code']:
+            tmp1=code[k]['code'].keys()
+            tmp2=code[k]['code'].values()
+            tmp3=[len(re.findall('\d+','%s'%v))>0 for v in tmp2]
+            tmp4=[len(re.findall('-|~','%s'%v))>0 for v in tmp2]
+            if (np.array(tmp3).sum()>=len(tmp2)-2) or (np.array(tmp4).sum()>=len(tmp2)*0.8-(1e-17)):
+                try:
+                    tmp_key=sorted(code[k]['code'],key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
+                except:
+                    tmp_key=list(tmp1)
+                code_order=[code[k]['code'][v] for v in tmp_key]
+                code[k]['code_order']=code_order
+   
     return (d2,code)
 
 ## ===========================================================
@@ -858,9 +875,19 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
         for qq in code.keys():
             qtype=code[qq]['qtype']
             if qtype == u'单选题':
-                data1[qq].replace(code[qq]['code'],inplace=True)            
+                data1[qq].replace(code[qq]['code'],inplace=True)
+                data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
             elif qtype == u'矩阵单选题':
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
+                tmp1=code[qq]['qlist']
+                tmp2=['{}({})'.format(q,code[qq]['code'][q]) for q in tmp1]
+                data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+            elif qtype in [u'多选题',u'排序题']:
+                tmp1=code[qq]['qlist']
+                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
+                data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+            else:
+                data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
     if (savetype == u'xlsx') or (savetype == u'xls'):
         data1.to_excel(filename,index=False)
     elif savetype == u'csv':

@@ -69,7 +69,9 @@ while 1:
             rpt.save_data(data,'data_readable.xlsx',code)
             break               
         if command=='3':
-            data_name=input('请输入数据的文件名，如data.xlsx')
+            data_name=input('请输入数据的文件名，缺省为 data.xlsx. 请输入:')
+            if not data_name:
+                data_name='data.xlsx'
             try:
                 data=rpt.read_data(data_name)
                 print('已成功导入data.')
@@ -77,7 +79,9 @@ while 1:
                 print(e)
                 print('data导入失败, 请检查')
                 continue
-            code_name=input('请输入code的文件名，如code.xlsx')
+            code_name=input('请输入code的文件名，缺省为 code.xlsx. 请输入:')
+            if not code_name:
+                code_name='code.xlsx'
             try:
                 code=rpt.read_code(code_name)
                 print('已成功导入code.')
@@ -108,7 +112,7 @@ while 1:
 ''')
             
         if command in ['3','exit']:
-            #print('开始下一步...')
+            print('本工具包由JSong开发, 谢谢使用，再见..')
             break
         if command=='1':
             filename=input('请输入需要保存的文件名,缺省为调研报告初稿: ')
