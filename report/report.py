@@ -1752,7 +1752,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
-        print(qq)
+        #print(qq)
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
