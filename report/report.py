@@ -884,7 +884,7 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
             elif qtype == u'矩阵单选题':
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
                 tmp1=code[qq]['qlist']
-                tmp2=['{}({})'.format(q,code[qq]['code'][q]) for q in tmp1]
+                tmp2=['{}({})'.format(q,code[qq]['code_r'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'排序题']:
                 tmp1=code[qq]['qlist']                
@@ -1083,14 +1083,14 @@ def sankey(df,filename=None):
     t1.columns.name='from'
     links=t1.unstack().reset_index(name='value')
     links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
-    links=links0.append(links)   
+    links=links0.append(links)
     if filename:
         links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
         nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
     return (links,nodes)
 
 
-def table(data,code):
+def table(data,code,total=True):
     '''
     单个题目描述统计
     code是data的编码，列数大于1
@@ -1116,7 +1116,7 @@ def table(data,code):
         fop=fo.copy()
         fop=fop/fop.sum()*1.0
         fop[u'合计']=fop.sum()
-        fo[u'合计']=fo.sum()        
+        fo[u'合计']=fo.sum()
         fop.rename(index=code['code'],inplace=True)
         fo.rename(index=code['code'],inplace=True)
         fop.name=u'占比'
@@ -1183,6 +1183,9 @@ def table(data,code):
     else:
         result['fop']=None
         result['fo']=None
+    if (not total) and not(result['fo'] is None) and (u'合计' in result['fo'].index):
+        result['fo'].drop([u'合计'],axis=0,inplace=True)
+        result['fop'].drop([u'合计'],axis=0,inplace=True)
     return result   
 
 def ntable(data,code):
@@ -1249,7 +1252,7 @@ def ntable(data,code):
         t1=None
     return (t,t1)
 
-def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
+def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,total=True):
     '''适用于问卷数据的交叉统计
     输入参数：
     data_index: 因变量，放在行中
@@ -1406,6 +1409,9 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     else:
         result['fop']=None
         result['fo']=None
+    if (not total) and not(result['fo'] is None) and ('总体' in result['fo'].columns):
+        result['fo'].drop(['总体'],axis=1,inplace=True)
+        result['fop'].drop(['总体'],axis=1,inplace=True)        
     return result
 
 
@@ -1547,9 +1553,9 @@ def qtable(data,*args):
         print('please input the q1,such as Q1.')
         return
     if q2 is None:
-        result=table(data[code[q1]['qlist']],code[q1])
+        result=table(data[code[q1]['qlist']],code[q1],total=False)
     else:
-        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
+        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=False)
     return result
 
 
