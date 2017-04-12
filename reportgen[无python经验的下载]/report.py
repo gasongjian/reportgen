@@ -98,9 +98,9 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     '''
     R,C=df.shape
     width=max(0.5,min(1,C/6.0))*0.80
-    height=max(0.5,min(1,R/12.0))*0.50
+    height=max(0.5,min(1,R/12.0))*0.70
     left=0.5-width/2
-    top=(1-height)*2/3
+    top=0.25
     left=Emu(left*slide_width)
     top=Emu(top*slide_height)
     width=Emu(width*slide_width)
@@ -285,7 +285,10 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER',\
     'XY_SCATTER_LINES','PIE']
     # 大致检测是否采用百分比
-    if (df.sum()>=90).all() and (df.sum()<=110).all():
+    # 1、单选题每列的和肯定是100，顶多相差+-5
+    # 2、多选题每一列的和大于100，但单个的小于100.此处可能会有误判，但暂时无解
+    # 3、可能会有某一列全为0，此时单独考虑
+    if  ((df.sum()[df.sum()!=0]>90).all()) and ((df<=100).all().all()) and (u'总体' not in df.index):
         # 数据条的数据标签格式
         number_format1='0.0"%"'
         # 坐标轴的数据标签格式
@@ -378,11 +381,11 @@ def read_code(filename):
         return code
     d=pd.read_excel(filename,header=None)
     d=d[d.any(axis=1)]#去除空行
-    d.replace({np.nan:'NULL'},inplace=True)
+    d.fillna('NULL',inplace=True)
     d=d.as_matrix()
     code={}
     for i in range(len(d)):
-        tmp=d[i,0]
+        tmp=d[i,0].strip()
         if tmp == 'key':
             # 识别题号
             code[d[i,1]]={}
@@ -390,11 +393,12 @@ def read_code(filename):
         elif tmp in ['qlist','code_order']:
             # 识别字典值为列表的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
-            if ind.any():
+            if len(ind)>0:
                 j=i+1+ind[0][0]
             else:
-                j=len(d)-1
+                j=len(d)
             tmp2=list(d[i:j,1])
+            # 列表中字符串的格式化，去除前后空格
             for i in range(len(tmp2)):
                 if isinstance(tmp2[i],str):
                     tmp2[i]=tmp2[i].strip()
@@ -402,7 +406,7 @@ def read_code(filename):
         elif tmp in ['code','code_r']:
             # 识别字典值为字典的字段
             ind=np.argwhere(d[i+1:,0]!='NULL')
-            if ind.any():
+            if len(ind)>0:
                 j=i+1+ind[0][0]
             else:
                 j=len(d)
@@ -416,7 +420,7 @@ def read_code(filename):
         # 识别其他的列表字段
         elif (tmp!='NULL') and (d[i,2]=='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
-            if ind.any():
+            if len(ind)>0:
                 j=i+1+ind[0][0]
             else:
                 j=len(d)
@@ -431,7 +435,7 @@ def read_code(filename):
         # 识别其他的字典字段
         elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
-            if ind.any():
+            if len(ind)>0:
                 j=i+1+ind[0][0]
             else:
                 j=len(d)
@@ -480,9 +484,9 @@ def save_code(code,filename='code.xlsx'):
                     i+=1
             elif (type(tmp2) == dict) and tmp2:
                 try:
-                    tmp2_key=sorted(tmp2,key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
+                    tmp2_key=sorted(tmp2,key=lambda c:float(re.findall('[\d\.]+','%s'%c)[-1]))
                 except:
-                    tmp2_key=list(tmp2.keys())     
+                    tmp2_key=list(tmp2.keys())   
                 j=0
                 for key1 in tmp2_key:
                     if j==0:
@@ -783,7 +787,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             tmp4=[len(re.findall('-|~','%s'%v))>0 for v in tmp2]
             if (np.array(tmp3).sum()>=len(tmp2)-2) or (np.array(tmp4).sum()>=len(tmp2)*0.8-(1e-17)):
                 try:
-                    tmp_key=sorted(code[k]['code'],key=lambda c:int(re.findall('\d+','%s'%c)[-1]))
+                    tmp_key=sorted(code[k]['code'],key=lambda c:float(re.findall('[\d\.]+','%s'%c)[-1]))
                 except:
                     tmp_key=list(tmp1)
                 code_order=[code[k]['code'][v] for v in tmp_key]
@@ -880,12 +884,19 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
             elif qtype == u'矩阵单选题':
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
                 tmp1=code[qq]['qlist']
-                tmp2=['{}({})'.format(q,code[qq]['code'][q]) for q in tmp1]
+                tmp2=['{}({})'.format(q,code[qq]['code_r'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
-            elif qtype in [u'多选题',u'排序题']:
-                tmp1=code[qq]['qlist']
+            elif qtype in [u'排序题']:
+                tmp1=code[qq]['qlist']                
                 tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+            elif qtype in [u'多选题']:
+                tmp1=code[qq]['qlist']
+                for q in tmp1:
+                    data1[q].replace({0:'',1:code[qq]['code'][q]},inplace=True)
+                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
+                data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+
             else:
                 data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
     if (savetype == u'xlsx') or (savetype == u'xls'):
@@ -908,15 +919,17 @@ def read_data(filename):
 def sa_to_ma(data):
     '''单选题数据转换成多选题数据
     data是单选题数据, 要求非有效列别为nan
+    可以使用内置函数pd.get_dummies()代替
     '''
     if isinstance(data,pd.core.frame.DataFrame):
         data=data[data.columns[0]]
-    categorys=sorted(data[data.notnull()].unique())
+    #categorys=sorted(data[data.notnull()].unique())
     categorys=data[data.notnull()].unique()
     try:
         categorys=sorted(categorys)
     except:
-        print('sa_to_ma function::cannot sorted')
+        pass
+        #print('sa_to_ma function::cannot sorted')
     data_ma=pd.DataFrame(index=data.index,columns=categorys)
     for c in categorys:
         data_ma[c]=data.map(lambda x : int(x==c))
@@ -1070,14 +1083,14 @@ def sankey(df,filename=None):
     t1.columns.name='from'
     links=t1.unstack().reset_index(name='value')
     links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
-    links=links0.append(links)   
+    links=links0.append(links)
     if filename:
         links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
         nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
     return (links,nodes)
 
 
-def table(data,code):
+def table(data,code,total=True):
     '''
     单个题目描述统计
     code是data的编码，列数大于1
@@ -1103,7 +1116,7 @@ def table(data,code):
         fop=fo.copy()
         fop=fop/fop.sum()*1.0
         fop[u'合计']=fop.sum()
-        fo[u'合计']=fo.sum()        
+        fo[u'合计']=fo.sum()
         fop.rename(index=code['code'],inplace=True)
         fo.rename(index=code['code'],inplace=True)
         fop.name=u'占比'
@@ -1149,19 +1162,30 @@ def table(data,code):
         topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
         qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
         top1=data.applymap(lambda x:int(x==1))
-        data.replace(qsort,inplace=True)
+        data_weight=data.replace(qsort)
         t1=pd.DataFrame()
         t1['TOP1']=top1.sum()
-        t1[u'综合']=data.sum()
+        t1[u'综合']=data_weight.sum()
         t1.sort_values(by=u'综合',ascending=False,inplace=True)
         t1.rename(index=code['code'],inplace=True)
         t=t1.copy()
         t=t/sample_len
         result['fop']=t
         result['fo']=t1
+        # 新增topn矩阵
+        t_topn=pd.DataFrame()
+        for i in range(topn):
+            t_topn['TOP%d'%(i+1)]=data.applymap(lambda x:int(x==i+1)).sum()
+        t_topn=t_topn/sample_len
+        t_topn.sort_values(by=u'TOP1',ascending=False,inplace=True)
+        t_topn.rename(index=code['code'],inplace=True)
+        result['TOPN']=t_topn
     else:
         result['fop']=None
         result['fo']=None
+    if (not total) and not(result['fo'] is None) and (u'合计' in result['fo'].index):
+        result['fo'].drop([u'合计'],axis=0,inplace=True)
+        result['fop'].drop([u'合计'],axis=0,inplace=True)
     return result   
 
 def ntable(data,code):
@@ -1228,7 +1252,7 @@ def ntable(data,code):
         t1=None
     return (t,t1)
 
-def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None):
+def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,total=True):
     '''适用于问卷数据的交叉统计
     输入参数：
     data_index: 因变量，放在行中
@@ -1298,11 +1322,12 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
             qtype2=qtype[1]
         elif isinstance(qtype,str):
             qtype1=qtype
-    if qtype1 == u'单选题':
+    if qtype1 == u'单选题':        
         data_index=sa_to_ma(data_index)
         qtype1=u'多选题'
     # 将单选题变为多选题
     if qtype2 == u'单选题':
+        #data_column=pd.get_dummies(data_column.iloc[:,0])
         data_column=sa_to_ma(data_column)
         qtype2=u'多选题'
 
@@ -1312,7 +1337,7 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
     # 频数表/data_column各个类别的样本量
     column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
     #column_freq[u'总体']=column_freq.sum()
-    column_freq[u'总体']=data_index.count()
+    column_freq[u'总体']=data_index.notnull().T.any().sum()  
     R=len(index_list)
     C=len(columns_list)
     result={}
@@ -1327,15 +1352,22 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
             for c in t.columns:
                 tmp=t[c]
                 tmp=tmp[w.index][tmp[w.index].notnull()]
-                fw.loc[c,u'加权']=(tmp*w).sum()/tmp.sum()
+                if abs(tmp.sum())>0:
+                    fw.loc[c,u'加权']=(tmp*w).sum()/tmp.sum()
+                else:
+                    fw.loc[c,u'加权']=0
             fo1=data_index.sum()[w.index][data_index.sum()[w.index].notnull()]
-            fw.loc[u'总体',u'加权']=(fo1*w).sum()/fo1.sum()
+            if abs(fo1.sum())>0:
+                fw.loc[u'总体',u'加权']=(fo1*w).sum()/fo1.sum()
+            else:
+                fw.loc[u'总体',u'加权']=0
             result['fw']=fw
         t[u'总体']=data_index.sum()
         t.sort_values([u'总体'],ascending=False,inplace=True)
         t1=t.copy()
         for i in t.columns:
-            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+            if column_freq[i]!=0:
+                t.loc[:,i]=t.loc[:,i]/column_freq[i]
         result['fop']=t
         result['fo']=t1              
     elif (qtype1 == u'矩阵单选题') and (qtype2 == u'多选题'):
@@ -1353,19 +1385,33 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None)
         topn=int(data_index.max().max())
         #topn=max([len(data_index[q][data_index[q].notnull()].unique()) for q in index_list])
         qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
-        data_index.replace(qsort,inplace=True)
-        t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
+        data_index_zh=data_index.replace(qsort)
+        t=pd.DataFrame(np.dot(data_index_zh.fillna(0).T,data_column.fillna(0)))
         t.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
-        t[u'总体']=data_index.sum()
+        t[u'总体']=data_index_zh.sum()
         t.sort_values([u'总体'],ascending=False,inplace=True)
         t1=t.copy()
         for i in t.columns:
-            t.loc[:,i]=t.loc[:,i]/column_freq[i]
+            if column_freq[i]!=0:
+                t.loc[:,i]=t.loc[:,i]/column_freq[i]
         result['fop']=t
-        result['fo']=t1              
+        result['fo']=t1
+        # 新增TOP1 数据
+        data_index_top1=data_index.applymap(lambda x:int(x==1))
+        top1=pd.DataFrame(np.dot(data_index_top1.fillna(0).T,data_column.fillna(0)))
+        top1.rename(index=dict(zip(range(R),index_list)),columns=dict(zip(range(C),columns_list)),inplace=True)
+        top1[u'总体']=data_index_top1.fillna(0).sum()
+        top1.sort_values([u'总体'],ascending=False,inplace=True)
+        for i in top1.columns:
+            if column_freq[i]!=0:
+                top1.loc[:,i]=top1.loc[:,i]/column_freq[i]
+        result['TOP1']=top1
     else:
         result['fop']=None
         result['fo']=None
+    if (not total) and not(result['fo'] is None) and ('总体' in result['fo'].columns):
+        result['fo'].drop(['总体'],axis=1,inplace=True)
+        result['fop'].drop(['总体'],axis=1,inplace=True)        
     return result
 
 
@@ -1507,9 +1553,9 @@ def qtable(data,*args):
         print('please input the q1,such as Q1.')
         return
     if q2 is None:
-        result=table(data[code[q1]['qlist']],code[q1])
+        result=table(data[code[q1]['qlist']],code[q1],total=False)
     else:
-        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2])
+        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=False)
     return result
 
 
@@ -1727,7 +1773,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
         else:
             result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
-        if ('fo' in result) and ('fop' in result):
+        if ('fo' in result_t) and ('fop' in result_t):
             t=result_t['fop']
             t1=result_t['fo']
         else:
@@ -1798,7 +1844,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         title=qq+': '+qtitle
         if not summary:
             summary=u'这里是结论区域.'
-        footnote=u'显著性检验结果为{result},数据来源于{qq},样本N={sample_len}'.format(result=cdata['significant']['result'],qq=qq,sample_len=sample_len)
+        if 'significant' in cdata:
+            sing_result=cdata['significant']['result']
+        else:
+            sing_result=-2
+        footnote=u'显著性检验结果为{result},数据来源于{qq},样本N={sample_len}'.format(result=sing_result,qq=qq,sample_len=sample_len)
         if (not total_display) and (u'总体' in plt_data.columns):
             plt_data.drop([u'总体'],axis=1,inplace=True)
         if len(plt_data)>max_column_chart:
@@ -1807,6 +1857,38 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         else:
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
+
+        # 排序题特殊处理
+        if (qtype == u'排序题') and ('TOP1' in result_t):
+            plt_data=result_t['TOP1']*100
+            # =======数据修正==============
+            if cross_order and (not reverse_display):
+                if u'总体' not in cross_order:
+                    cross_order=cross_order+[u'总体']
+                cross_order=[q for q in cross_order if q in plt_data.columns]
+                plt_data=pd.DataFrame(plt_data,columns=cross_order)
+            if cross_order and reverse_display:
+                cross_order=[q for q in cross_order if q in plt_data.index]
+                plt_data=pd.DataFrame(plt_data,index=cross_order)
+            if 'code_order' in code[qq]:
+                code_order=code[qq]['code_order']
+                if reverse_display:
+                    #code_order=[q for q in code_order if q in t.columns]
+                    if u'总体' in t1.columns:
+                        code_order=code_order+[u'总体']
+                    plt_data=pd.DataFrame(plt_data,columns=code_order)
+                else:
+                    #code_order=[q for q in code_order if q in t.index]
+                    plt_data=pd.DataFrame(plt_data,index=code_order)
+            plt_data.fillna(0,inplace=True)                                                                            
+            title='[TOP1]' + title
+            if len(plt_data)>max_column_chart:
+                plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+            else:
+                plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+
 
 
 
@@ -1924,6 +2006,28 @@ max_column_chart=20,template=None):
         else:
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
+
+        # 排序题特殊处理
+        if (qtype == u'排序题') and ('TOPN' in result_t):
+            plt_data=result_t['TOPN']*100
+            # =======数据修正==============
+            if 'code_order' in code[qq]:
+                code_order=code[qq]['code_order']
+                #code_order=[q for q in code_order if q in t.index]
+                if u'合计' in plt_data.index:
+                    code_order=code_order+[u'合计']
+                plt_data=pd.DataFrame(plt_data,index=code_order)
+            plt_data.fillna(0,inplace=True)
+                         
+            title='[TOPN]'+title
+            if len(plt_data)>max_column_chart:
+                plot_chart(prs,plt_data,'BAR_STACKED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+            else:
+                plot_chart(prs,plt_data,'COLUMN_STACKED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+
+
 
     # ========================文件生成和导出======================
     try:
