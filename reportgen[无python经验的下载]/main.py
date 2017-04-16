@@ -217,7 +217,7 @@ while 1:
                 title=u'对应分析图(信息量为{:.1f}%)'.format(inertia[1]*100)
                 fig=rpt.scatter([x,y],title=title)
                 filename='ca_'+qq1+'_'+qq2
-                fig.savefig(filename+'.png')
+                fig.savefig(filename+'.png',dpi=500)
                 w=pd.ExcelWriter(filename+'.xlsx')
                 x.to_excel(w,startrow=0,index_label=True)
                 y.to_excel(w,startrow=len(x)+2,index_label=True)
