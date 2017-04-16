@@ -1035,12 +1035,15 @@ def mca(X,N=2):
     '''
 
 
-def scatter(data):
+def scatter(data,legend=False,title=None):
+    '''
+    绘制带数据标签的散点图
+    '''
     import matplotlib.pyplot as plt
     import matplotlib.font_manager as fm
     myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
     fig, ax = plt.subplots()
-    ax.grid('on')
+    #ax.grid('on')
     ax.xaxis.set_ticks_position('none')
     ax.yaxis.set_ticks_position('none')
     ax.axhline(y=0, linestyle='-', linewidth=1.2, alpha=0.6)
@@ -1054,8 +1057,11 @@ def scatter(data):
         for _, row in dd.iterrows():
             ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
     ax.axis('equal')
-    ax.legend(loc='best')
-    return fig, ax
+    if legend:
+        ax.legend(loc='best')
+    if title:
+        ax.set_title(title,fontproperties=myfont)
+    return fig
 
 
 
