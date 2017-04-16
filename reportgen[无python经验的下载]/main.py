@@ -13,6 +13,7 @@ import report as rpt
 import re
 import os
 import time
+import pandas as pd
 
 mytemplate={'path':'template.pptx','layouts':[2,0]}
 
@@ -27,7 +28,6 @@ while 1:
 1. 从问卷星导入数据并编码.
 2.从问卷网导入数据并编码.
 3.直接导入已编码好的数据.
-4.继续下一步：报告生成
 请输入相应的序号
 ''')
             
@@ -105,13 +105,16 @@ while 1:
     try:
         command = input('''
 ==========二、报告生成=======.
-1. 描述统计报告(无交叉分析).
-2. 交叉分析报告.
-3. 退出程序(也可以输入exit).
+1. 描述统计报告自动生成
+2. 交叉分析报告自动生成.
+3. 单题描述统计
+4. 单题交叉分析
+5. 单题对应分析
+0. 退出程序(也可以输入exit或者quit).
 请输入相应的序号
 ''')
             
-        if command in ['3','exit']:
+        if command in ['0','exit','quit']:
             print('本工具包由JSong开发, 谢谢使用，再见..')
             break
         if command=='1':
@@ -120,6 +123,7 @@ while 1:
                 filename=u'调研报告初稿'
             rpt.summary_chart(data,code,filename=filename,template=mytemplate);
             print('\n 报告已生成: '+os.path.join(os.getcwd(),'out',filename+'.pptx'))
+            continue
         if command=='2':
             qq=input('请输入需要交叉分析的变量(例如: Q1): ')
             if qq in code:
@@ -128,7 +132,7 @@ while 1:
                 print('没有找到您输入的题目,请返回重新输入.')
                 continue
             if code[qq]['qtype'] not in ['单选题','多选题']:
-                print('您选择的题目类型不是单选题或者多选题，本脚本暂时无法支持，请重新选择！')
+                print('您选择的题目类型不是单选题或者多选题，本脚本暂时无法支持，请重新输入！')
                 continue
             filename=qq+'_差异分析'
             save_dstyle=['FO','TGI','CHI']
@@ -139,9 +143,103 @@ while 1:
             except Exception as e:
                 print(e)
                 print('报告生成过程出现错误，请重新检查数据和编码.')
-                continue                    
+                continue                  
+        if command=='3':
+            qq=input('请输入需要统计的变量(例如: Q1): ')
+            if qq in code:
+                print('您输入的是%s: %s'%(qq,code[qq]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            if code[qq]['qtype'] not in ['单选题','多选题','排序题','矩阵单选题']:
+                print('您选择的题目类型本脚本暂时无法支持，请重新输入！')
+                continue
+            try:
+                t=rpt.qtable(data,code,qq)
+                if not(t['fo'] is None):
+                    print('百分比表如下：')
+                    print(t['fop'])
+                    print('--'*10)
+                    print('频数表如下:')
+                    print(t['fo'])
+            except Exception as e:
+                print(e)
+                print('脚本运行错误，请重新检查数据和编码.')
+                continue
+
+        if command=='4':
+            qq1=input('请输入需要交叉分析的行变量，也是因变量(例如: Q1): ')
+            if qq1 in code:
+                print('您输入的是%s: %s'%(qq1,code[qq1]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            qq2=input('请输入需要交叉分析的列变量，也是自变量(例如: Q1): ')
+            if qq2 in code:
+                print('您输入的是%s: %s'%(qq2,code[qq2]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            if code[qq2]['qtype'] not in ['单选题','多选题']:
+                print('您选择的自变量题目类型不是单选题或者多选题，本脚本暂时无法支持，请重新输入！')
+                continue
+            try:
+                t=rpt.qtable(data,code,qq1,qq2)
+                if not(t['fo'] is None):
+                    print('百分比表如下：')
+                    print(t['fop'])
+                    print('--'*10)
+                    print('频数表如下:')
+                    print(t['fo'])
+            except Exception as e:
+                print(e)
+                print('脚本运行错误，请重新检查数据和编码.')
+                continue
+        if command=='5':
+            qq1=input('请输入需要对应分析的行变量，也是因变量(例如: Q1): ')
+            if qq1 in code:
+                print('您输入的是%s: %s'%(qq1,code[qq1]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            qq2=input('请输入需要交叉分析的列变量，也是自变量(例如: Q1): ')
+            if qq2 in code:
+                print('您输入的是%s: %s'%(qq2,code[qq2]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            if code[qq2]['qtype'] not in ['单选题','多选题']:
+                print('您选择的自变量题目类型不是单选题或者多选题，本脚本暂时无法支持，请重新输入！')
+                continue
+            try:
+                t=rpt.qtable(data,code,qq1,qq2)['fo']
+                x,y,inertia=rpt.mca(t)
+                title=u'对应分析图(信息量为{:.1f}%)'.format(inertia[1]*100)
+                fig=rpt.scatter([x,y],title=title)
+                filename='ca_'+qq1+'_'+qq2
+                fig.savefig(filename+'.png')
+                w=pd.ExcelWriter(filename+'.xlsx')
+                x.to_excel(w,startrow=0,index_label=True)
+                y.to_excel(w,startrow=len(x)+2,index_label=True)
+                w.save()
+                print('该对应分析能解释{:.1f}%的信息,相应的图片和数据已保存为：'.format(inertia[1]*100))
+                print('图片： '+filename+'.png')
+                print('数据(可利用PPT的散点图绘制更漂亮的图表)：'+filename+'.xlsx')
+                try:
+                    from PIL import Image
+                    img=Image.open(filename+'.png')
+                    img.show()
+                except:
+                    pass
+            except Exception as e:
+                print(e)
+                print('脚本运行错误，请重新检查数据和编码.')
+                continue
     except Exception as e:
         print(e)
         print('错误..')
+        
+        
+        
 
        
