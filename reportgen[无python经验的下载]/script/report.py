@@ -1035,12 +1035,15 @@ def mca(X,N=2):
     '''
 
 
-def scatter(data):
+def scatter(data,legend=False,title=None):
+    '''
+    绘制带数据标签的散点图
+    '''
     import matplotlib.pyplot as plt
     import matplotlib.font_manager as fm
     myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
     fig, ax = plt.subplots()
-    ax.grid('on')
+    #ax.grid('on')
     ax.xaxis.set_ticks_position('none')
     ax.yaxis.set_ticks_position('none')
     ax.axhline(y=0, linestyle='-', linewidth=1.2, alpha=0.6)
@@ -1054,8 +1057,11 @@ def scatter(data):
         for _, row in dd.iterrows():
             ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
     ax.axis('equal')
-    ax.legend(loc='best')
-    return fig, ax
+    if legend:
+        ax.legend(loc='best')
+    if title:
+        ax.set_title(title,fontproperties=myfont)
+    return fig
 
 
 
@@ -1672,6 +1678,96 @@ def contingency(fo,alpha=0.05):
     cdata['summary']=summary
     return cdata
 
+def plot_cover(prs,title=u'reportgen工具包封面',layouts=[0,0],xspace=8,yspace=6):
+    try:
+        from delaunay import Delaunay2D
+    except:
+        return
+    slide_width=prs.slide_width
+    slide_height=prs.slide_height
+    # 可能需要修改以适应更多的情形
+    title_only_slide = prs.slide_masters[layouts[0]].slide_layouts[layouts[1]]
+    slide = prs.slides.add_slide(title_only_slide)
+    
+    ## 随机生成连接点
+    seeds=np.round(np.dot(np.random.rand((xspace-1)*(yspace-1),2),np.diag([slide_width,slide_height])))
+    # 添加左边点
+    tmp=np.linspace(0,slide_height,yspace)
+    seeds=np.concatenate((seeds,np.array([[0]*len(tmp),tmp]).T))
+    # 添加上边点
+    tmp=np.linspace(0,slide_width,xspace)[1:]
+    seeds=np.concatenate((seeds,np.array([tmp,[0]*len(tmp)]).T))
+    # 添加右边点
+    tmp=np.linspace(0,slide_height,yspace)[1:]
+    seeds=np.concatenate((seeds,np.array([[slide_width]*len(tmp),tmp]).T))
+    # 添加下边点
+    tmp=np.linspace(0,slide_width,xspace)[1:-1]
+    seeds=np.concatenate((seeds,np.array([tmp,[slide_height]*len(tmp)]).T))
+    
+    # 构造三角剖分，生成相应的三角形和平面图数据
+    center = np.mean(seeds, axis=0)
+    t=np.sqrt(slide_width**2+slide_height**2)/2
+    dt = Delaunay2D(center, 2**(np.floor(np.log2(t))+1))
+    for s in seeds:
+        dt.AddPoint(s)  
+    tri=dt.exportTriangles()    
+    graph=np.zeros((len(seeds),len(seeds)))
+    for t in tri:    
+        graph[t[0],t[1]]=1
+        graph[t[1],t[2]]=1
+        graph[t[0],t[2]]=1
+        graph[t[1],t[0]]=1
+        graph[t[2],t[1]]=1
+        graph[t[2],t[1]]=1
+      
+    
+    from pptx.enum.shapes import MSO_CONNECTOR
+    from pptx.enum.shapes import MSO_SHAPE
+    shapes = slide.shapes
+    # 添加连接线
+    for i in range(len(seeds)):
+        for j in range(len(seeds)):
+            if (i<j) and graph[i,j]==1:
+                shapes.add_connector(
+                MSO_CONNECTOR.STRAIGHT, Emu(seeds[i,0]), Emu(seeds[i,1]), Emu(seeds[j,0]), Emu(seeds[j,1]))
+    # 添加圆点，原点的半径符合高斯分布
+    radius=slide_width/100
+    for i in range(len(seeds)):
+        eps=np.random.normal(scale=radius*0.2)
+        left=Emu(seeds[i,0])-radius-eps
+        top=Emu(seeds[i,1])-radius-eps
+        width=height=2*(radius+eps)
+        shape=shapes.add_shape(
+        MSO_SHAPE.OVAL,left, top, width, height)
+        shape.line.width=Emu(0)    
+        fill = shape.fill
+        fill.solid()
+        fill.fore_color.rgb = RGBColor(218,227,243)
+    
+    # 添加标题
+    left,top = Emu(0), Emu(0.4*slide_height)
+    width,height = Emu(1*slide_width), Emu(0.2*slide_height)
+    shape=shapes.add_shape(
+    MSO_SHAPE.RECTANGLE,left, top, width, height)
+    shape.line.width=Emu(0)
+    fill = shape.fill
+    fill.solid()
+    fill.fore_color.rgb = RGBColor(0,176,240)
+    shape.text=title
+    
+    # 添加脚注
+    left,top = Emu(0.72*slide_width), Emu(0.93*slide_height)
+    width,height = Emu(0.25*slide_width), Emu(0.07*slide_height)
+    txBox = slide.shapes.add_textbox(left, top, width, height)
+    txBox.text_frame.text='POWERED BY REPORTGEN'
+    
+    # 添加LOGO
+    import os   
+    logo_path=os.path.join(os.path.split(__file__)[0],'logo.png')
+    if os.path.exists(logo_path):
+        left,top = Emu(0.65*slide_width), Emu(0.94*slide_height)
+        height=Emu(0.06*slide_height)
+        slide.shapes.add_picture(logo_path, left, top, height=height)
 
 
 
@@ -1750,8 +1846,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
 
     result={}#记录每道题的的统计数据
+    
+    # ================封面页=============================
+    plot_cover(prs,layouts=layouts,title=filename)   
     # ================背景页=============================
-    title=u'背景说明(Powered by Python)'
+    title=u'说明'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
     summary=summary+'\n'+u'各类别样本量如下：'
     plot_table(prs,cross_class_freq,title=title,summary=summary,layouts=layouts)
@@ -1936,8 +2035,10 @@ max_column_chart=20,template=None):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
     result={}#记录每道题的过程数据
+    # ================封面页=============================
+    plot_cover(prs,layouts=layouts,title=filename)  
     # ================背景页=============================
-    title=u'背景说明(Powered by Python)'
+    title=u'说明'
     summary=u'有效样本为%d'%sample_len
     plot_textbox(prs,title=title,summary=summary,layouts=layouts)
 

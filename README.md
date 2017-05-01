@@ -11,7 +11,7 @@
 1. python科学计算所需的包，建议直接安装[anaconda](https://www.continuum.io/downloads)(强烈推荐使用python3版本)
 2. 安装python包`python-pptx`:  在cmd中输入："pip install python-pptx" 
 3. 安装report包: 下载report\\report.py, 然后放在工作目录即可(省心点可以直接扔进 C:\Anaconda3\Lib\site-packages 中，这样在任何地方都能使用该工具包啦)
-4. 打开spyder
+
 
 #### 备注
 
@@ -46,8 +46,7 @@ import report as rpt
 #  数据编码和导入
 data,code=rpt.wenjuanxing()
 # 交叉统计报告生成(假设第一道题Q1是性别选择题)
-save_dstyle=['FE','TGI','CHI']#自由选择需要保存的指标(FE:期望频数等)
-rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析',save_dstyle=save_dstyle);
+rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析');
 ```
 如上代码可以在.\\out\\文件夹下生成5个文件
 
@@ -108,10 +107,13 @@ template=None):
 
 ## 3、工具包教程
 
-### 3.1 数据编码和预处理
+### 3.1 问卷数据的格式
 
-问卷数据涉及到各种题型，包括单选题、多选题、填空题、矩阵多选题、排序题等等。不管是
-频数统计还是交叉分析，单选题都很好处理。但其他题目就相对复杂的多，比如单选题和多选题
+问卷数据可以来源于各大问卷网站，如问卷星、问卷网等，也可以来源于用户手动填写后再人工录入的文件。但不管怎样，常见的题型都是：单选题、多选题、填空题、矩阵多选题、排序题等等。在数据分析的过程中，我们一般喜欢用数字来存储用户的选择，比如用1来代表18-24岁，用2代表25-29岁。这样处理的目的不仅仅是简介，更多的是因为一些复杂的分析算法必须用数字，例如相关性分析、聚类、关联分析等
+
+接下来，我们将分题型来讨论问卷数据的存储方式。
+
+首先是单选题，这个比较简单，我们可以用
 之间的交叉统计，多选题和多选题之间的交叉统计。
 
 为了区分题目类型和统计处理方法，本工具包统一使用一种数据类型（或者说编码方式）：
@@ -134,7 +136,7 @@ template=None):
 
 2、 编码文件（json格式）, 给定每道题的题号、序号编码等内容，示例：
 
-```json
+```python
 code={'Q1':{
     'content':'性别',
     'code':{
@@ -171,6 +173,9 @@ code={'Q1':{
 # rpt.read_code('code.xlsx')同样可以返回字典格式的code
 ```
 
+
+
+### 3.2 数据导入
 对于处理好的数据，可以用如下方式导入：
 
 ```python
@@ -191,16 +196,16 @@ data,code=rpt.wenjuanwang(['All_Data_Readable.csv','All_Data_Original.csv','code
 
 ```
 
+### 3.3 数据预处理
 
-### 3.2 描述统计
 
-### 3.3 交叉统计
+### 3.4 数据分析
 
-### 3.4 列联表分析
+### 3.5 报告生成
 
-### 3.5 PPT生成
 
-#### 3.5.1 模板的使用
+
+
 
 
 

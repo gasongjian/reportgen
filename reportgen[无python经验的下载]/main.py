@@ -9,13 +9,17 @@ Created on Mon Apr  3 13:16:07 2017
 
 # -*- coding: utf-8 -*-
 
-import report as rpt
-import re
+import sys
 import os
+sys.path.append(os.path.join(os.path.split(__file__)[0],'script'))
+
+import re
 import time
 import pandas as pd
+import report as rpt
 
-mytemplate={'path':'template.pptx','layouts':[2,0]}
+
+mytemplate={'path':'template.pptx','layouts':[0,0]}
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
 
