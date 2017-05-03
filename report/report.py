@@ -1006,6 +1006,9 @@ def mca(X,N=2):
     '''对应分析函数，暂时支持双因素
     X：观察频数表
     N：返回的维数，默认2维
+    可以通过scatter函数绘制：
+    fig=scatter([pr,pc])
+    fig.savefig('mca.png')
     '''
     from scipy.linalg import diagsvd
     S = X.sum().sum()
@@ -1067,22 +1070,25 @@ def scatter(data,legend=False,title=None):
 
 def sankey(df,filename=None):
     '''SanKey图绘制
+    df的列是左节点，行是右节点
     注:暂时没找到好的Python方法，所以只生成R语言所需数据
     返回links 和 nodes
     # R code 参考
     library(networkD3)
     dd=read.csv('price_links.csv')
     links<-data.frame(source=dd$from,target=dd$to,value=dd$value)
-    nodes=read.csv('price_nodes.csv',header = FALSE)
-    names(nodes)='name'
+    nodes=read.csv('price_nodes.csv',encoding = 'UTF-8')
+    nodes<-nodes['name']
     Energy=c(links=links,nodes=nodes)
     sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
                   Target = "target", Value = "value", NodeID = "name",
-                  units = "TWh",fontSize = 18,fontFamily='微软雅黑',nodeWidth=20) 
+                  units = "TWh",fontSize = 20,fontFamily='微软雅黑',nodeWidth=20) 
     '''
     nodes=['Total']
     nodes=nodes+list(df.columns)+list(df.index)
-    nodes=pd.Series(nodes)
+    nodes=pd.DataFrame(nodes)
+    nodes['id']=range(len(nodes))
+    nodes.columns=['name','id']
     R,C=df.shape
     t1=pd.DataFrame(df.as_matrix(),columns=range(1,C+1),index=range(C+1,R+C+1))
     t1.index.name='to'
@@ -1091,7 +1097,7 @@ def sankey(df,filename=None):
     links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
     links=links0.append(links)
     if filename:
-        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
+        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')        
         nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
     return (links,nodes)
 
@@ -1861,6 +1867,8 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
+        if not(set(qlist) <= set(data.columns)):
+            continue
         data_index=data[qlist]
 
         sample_len=data_column.iloc[list(data_index.notnull().T.any()),:].notnull().T.any().sum()
@@ -1951,7 +1959,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         if (not total_display) and (u'总体' in plt_data.columns):
             plt_data.drop([u'总体'],axis=1,inplace=True)
         if len(plt_data)>max_column_chart:
-            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+            plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
         else:
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
@@ -1982,7 +1990,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             plt_data.fillna(0,inplace=True)                                                                            
             title='[TOP1]' + title
             if len(plt_data)>max_column_chart:
-                plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+                plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
                 footnote=footnote,layouts=layouts)
             else:
                 plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
@@ -2052,6 +2060,8 @@ max_column_chart=20,template=None):
         qtitle=code[qq]['content']
         qlist=code[qq]['qlist']
         qtype=code[qq]['qtype']
+        if not(set(qlist) <= set(data.columns)):
+            continue
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
@@ -2099,7 +2109,7 @@ max_column_chart=20,template=None):
         }
         # 绘制图表plt_data一般是Series，对于矩阵单选题，其是dataFrame
         if len(t)>max_column_chart:
-            plot_chart(prs,plt_data,'BAR_CLUSTERED',title=title,summary=summary,\
+            plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
         elif (len(t)>3) or (len(plt_data.shape)>1 and plt_data.shape[1]>1):
             plot_chart(prs,plt_data,'COLUMN_CLUSTERED',title=title,summary=summary,\
@@ -2122,7 +2132,7 @@ max_column_chart=20,template=None):
                          
             title='[TOPN]'+title
             if len(plt_data)>max_column_chart:
-                plot_chart(prs,plt_data,'BAR_STACKED',title=title,summary=summary,\
+                plot_chart(prs,plt_data[::-1],'BAR_STACKED',title=title,summary=summary,\
                 footnote=footnote,layouts=layouts)
             else:
                 plot_chart(prs,plt_data,'COLUMN_STACKED',title=title,summary=summary,\
