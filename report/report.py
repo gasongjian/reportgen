@@ -118,6 +118,7 @@ def df_to_chartdata(df,datatype,number_format=None):
     '''
     if isinstance(df,pd.Series):
         df=pd.DataFrame(df)
+    df.fillna(0,inplace=True)
     datatype=datatype.lower()
     if datatype == 'chartdata':
         chart_data = ChartData()
@@ -254,6 +255,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
         except:
             pass
             #print('cannot fit the size of font')
+    # 插图图表
     chart_type_code=chart_list[chart_type][1]
     chart_data=df_to_chartdata(df,chart_type_code)
     x, y = Emu(0.05*slide_width), Emu(0.20*slide_height)
@@ -1349,10 +1351,11 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
     # 频数表/data_column各个类别的样本量
     column_freq=data_column.iloc[list(data_index.notnull().T.any()),:].sum()
     #column_freq[u'总体']=column_freq.sum()
-    column_freq[u'总体']=data_index.notnull().T.any().sum()  
+    column_freq[u'总体']=data_index.notnull().T.any().sum()
     R=len(index_list)
     C=len(columns_list)
     result={}
+    result['sample_size']=column_freq
     if (qtype1 == u'多选题') and (qtype2 == u'多选题'):
         data_index.fillna(0,inplace=True)
         t=pd.DataFrame(np.dot(data_index.fillna(0).T,data_column.fillna(0)))
@@ -1423,7 +1426,17 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
         result['fo']=None
     if (not total) and not(result['fo'] is None) and ('总体' in result['fo'].columns):
         result['fo'].drop(['总体'],axis=1,inplace=True)
-        result['fop'].drop(['总体'],axis=1,inplace=True)        
+        result['fop'].drop(['总体'],axis=1,inplace=True)
+    if not(result['fo'] is None) and code_index and ('code_order' in code_index):
+        code_order=code_index['code_order']
+        code_order=[q for q in code_order if q in result['fo'].index]
+        result['fo']=pd.DataFrame(result['fo'],index=code_order)
+        result['fop']=pd.DataFrame(result['fop'],index=code_order)
+    if not(result['fo'] is None) and code_column and ('code_order' in code_column):
+        code_order=code_column['code_order']
+        code_order=[q for q in code_order if q in result['fo'].columns]
+        result['fo']=pd.DataFrame(result['fo'],columns=code_order)
+        result['fop']=pd.DataFrame(result['fop'],columns=code_order)
     return result
 
 
@@ -1622,7 +1635,7 @@ def contingency(fo,alpha=0.05):
     PCHI=1/(1+np.exp(-1*CHI))
     cdata['FO']=fo
     cdata['FE']=fe
-    cdata['TGI']=TGI
+    cdata['TGI']=TGI*100
     cdata['TWI']=TWI
     cdata['CHI']=CHI
     cdata['PCHI']=PCHI
@@ -1845,16 +1858,23 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     # 生成数据接口(因为exec&eval)
-    Writer=pd.ExcelWriter('.\\out\\'+filename+u'_百分比表.xlsx')
+    Writer=pd.ExcelWriter('.\\out\\'+filename+u'.xlsx')
     Writer_save={}
     if save_dstyle:
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
 
-    result={}#记录每道题的的统计数据
+    result={}#记录每道题的的统计数据，用户函数的返回数据
+    
+    # 记录没到题目的样本数和显著性差异检验结果，用于最后的数据输出
+    cross_columns=list(cross_class_freq.index)
+    cross_columns=[r for r in cross_columns if r!=u'合计']
+    cross_columns=['内容','题型']+cross_columns+[u'总体',u'显著性检验']
+    conclusion=pd.DataFrame(index=cross_qlist,columns=cross_columns)
+    conclusion.to_excel(Writer,u'索引')
     
     # ================封面页=============================
-    plot_cover(prs,layouts=layouts,title=filename)   
+    plot_cover(prs,layouts=layouts,title=filename)
     # ================背景页=============================
     title=u'说明'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
@@ -1883,6 +1903,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         if ('fo' in result_t) and ('fop' in result_t):
             t=result_t['fop']
             t1=result_t['fo']
+            qsample=result_t['sample_size']
         else:
             continue
         
@@ -1901,7 +1922,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             t=pd.DataFrame(t,index=cross_order)
             t1=pd.DataFrame(t1,index=cross_order)
         if 'code_order' in code[qq]:
-            code_order=code[qq]['code_order']         
+            code_order=code[qq]['code_order']
             if reverse_display:
                 #code_order=[q for q in code_order if q in t.columns]
                 if u'总体' in t1.columns:
@@ -1918,6 +1939,9 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         # =======保存到Excel中========
         t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
+        Writer_rows=len(t2)# 记录当前Excel文件写入的行数
+        pd.DataFrame(qsample,columns=['样本数']).to_excel(Writer,qq,startrow=Writer_rows+2)
+        Writer_rows+=len(qsample)+2
 
         #列联表分析
         cdata=contingency(t1,alpha=0.05)# 修改容错率
@@ -1928,9 +1952,8 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             if save_dstyle:
                 for dstyle in save_dstyle:
                     cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
-        if cdata and plt_dstyle:
-            plt_data=cdata[plt_dstyle]
-        elif qtype in [u'单选题',u'多选题',u'排序题']:
+
+        if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
@@ -1946,9 +1969,14 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
                     cross_order=cross_order+[u'总体']
                 cross_order=[q for q in cross_order if q in plt_data.index]
                 plt_data=pd.DataFrame(plt_data,index=cross_order)
+            plt_data.to_excel(Writer,qq,startrow=Writer_rows+2)
+            Writer_rows+=len(plt_data)
+
+        if plt_dstyle and isinstance(cdata,dict) and (plt_dstyle in cdata):
+            plt_data=cdata[plt_dstyle]
         
         # 绘制PPT
-        title=qq+': '+qtitle
+        title=qq+'['+qtype+']: '+qtitle
         if not summary:
             summary=u'这里是结论区域.'
         if 'significant' in cdata:
@@ -1956,6 +1984,12 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         else:
             sing_result=-2
         footnote=u'显著性检验结果为{result},数据来源于{qq},样本N={sample_len}'.format(result=sing_result,qq=qq,sample_len=sample_len)
+
+        # 保存相关数据
+        conclusion.loc[qq,:]=qsample
+        conclusion.loc[qq,[u'内容',u'题型']]=pd.Series({u'内容':code[qq]['content'],u'题型':code[qq]['qtype']})            
+        conclusion.loc[qq,u'显著性检验']=sing_result
+                                 
         if (not total_display) and (u'总体' in plt_data.columns):
             plt_data.drop([u'总体'],axis=1,inplace=True)
         if len(plt_data)>max_column_chart:
@@ -1987,7 +2021,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
                 else:
                     #code_order=[q for q in code_order if q in t.index]
                     plt_data=pd.DataFrame(plt_data,index=code_order)
-            plt_data.fillna(0,inplace=True)                                                                            
+            plt_data.fillna(0,inplace=True)                                                                      
             title='[TOP1]' + title
             if len(plt_data)>max_column_chart:
                 plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
@@ -2007,14 +2041,18 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
     # ========================文件生成和导出======================
     #difference.to_csv('.\\out\\'+filename+u'_显著性检验.csv',encoding='gbk')
+    if plt_dstyle:
+        filename=filename+'_'+plt_dstyle
     try:
         prs.save('.\\out\\'+filename+u'.pptx')
     except:
-        prs.save('.\\out\\'+filename+u'_副本.pptx')            
+        prs.save('.\\out\\'+filename+u'_副本.pptx')
+    conclusion.to_excel(Writer,'索引')
     Writer.save()
     if save_dstyle:
         for dstyle in save_dstyle:
             Writer_save[u'Writer_'+dstyle].save()
+
     return result
 
 
@@ -2043,6 +2081,9 @@ max_column_chart=20,template=None):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
     result={}#记录每道题的过程数据
+    # 记录样本数等信息，用于输出
+    conclusion=pd.DataFrame(index=summary_qlist,columns=[u'内容',u'题型',u'样本数'])
+    conclusion.to_excel(Writer,u'索引')
     # ================封面页=============================
     plot_cover(prs,layouts=layouts,title=filename)  
     # ================背景页=============================
@@ -2063,6 +2104,11 @@ max_column_chart=20,template=None):
         if not(set(qlist) <= set(data.columns)):
             continue
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
+        
+        conclusion.loc[qq,u'内容']=qtitle
+        conclusion.loc[qq,u'题型']=qtype
+        conclusion.loc[qq,u'样本数']=sample_len_qq
+                      
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         result_t=table(data[qlist],code=code[qq])
@@ -2098,7 +2144,7 @@ max_column_chart=20,template=None):
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
-        title=qq+': '+qtitle
+        title=qq+'['+qtype+']: '+qtitle
         if (qtype in [u'单选题']) and 'fw' in result_t:
             summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
         else:
@@ -2145,6 +2191,7 @@ max_column_chart=20,template=None):
         prs.save('.\\out\\'+filename+u'.pptx')
     except:
         prs.save('.\\out\\'+filename+u'_副本.pptx')        
+    conclusion.to_excel(Writer,'索引')
     Writer.save()
     return result
 
