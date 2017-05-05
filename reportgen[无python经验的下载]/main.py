@@ -18,7 +18,6 @@ import time
 import pandas as pd
 import report as rpt
 
-
 mytemplate={'path':'template.pptx','layouts':[0,0]}
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
@@ -35,7 +34,7 @@ while 1:
 请输入相应的序号
 ''')
             
-        if command in ['4','exit']:
+        if command in ['0','exit']:
             #print('开始下一步...')
             break
         if command=='1':
@@ -102,6 +101,50 @@ while 1:
     except Exception as e:
         print(e)
         print('错误..')
+
+
+
+
+#==================================================================
+while 1:
+    #print('=' * 70)
+    try:
+        command = input('''
+==========二、数据预处理=======.
+1. 数据筛选.
+2. 数据合并.
+3. 保存数据并进入下一步.
+4. 直接进入下一步.
+请输入相应的序号
+''')
+            
+        if not command:
+            break
+        if command in ['0','4','exit']:
+            break
+        if command=='1':
+            qq=input('请选择需要筛选的变量,如Q1. 请输入:')
+            if (not qq) or not(qq in code):
+                print('请输入正确的题号...')
+                continue
+            print('您选择了{},该题目的编码如下:'.format(qq))
+            print('-'*20)
+            for c in code[qq]['code']:
+                print('{}: {}'.format(c,code[qq]['code'][c]))
+            print('-'*20)
+            itemlist=input('请选择需要保存的选项,输入前面的序号(多选可逗号隔开),如：1,2,3..请输入:')
+            if not itemlist:
+                print('请输入...')
+            itemlist=re.sub('，',',',itemlist)
+            itemlist=itemlist.split(',')
+            itemlist=[int(item) for item in itemlist if item.isalnum()]
+            itemlist=list(set(itemlist)&set(code[qq]['code'].keys()))
+    except Exception as e:
+        print(e)
+        print('错误..')
+
+
+
 
 #=======================================================================
 while 1:
