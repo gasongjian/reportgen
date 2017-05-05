@@ -237,6 +237,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     width,height = Emu(0.7*slide_width), Emu(0.1*slide_height)
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
+    txBox.text_frame.paragraphs[0].font.language_id = 3076
     try:
         txBox.text_frame.fit_text(max_size=12)
     except:
@@ -246,15 +247,23 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
 
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
-        left,top = Emu(0.02*slide_width), Emu(0.95*slide_height)
+        left,top = Emu(0.025*slide_width), Emu(0.95*slide_height)
         width,height = Emu(0.70*slide_width), Emu(0.05*slide_height)
         txBox = slide.shapes.add_textbox(left, top, width, height)
-        txBox.text_frame.text=footnote
+        #p = text_frame.paragraphs[0]
+        p=txBox.text_frame.paragraphs[0]
+        p.text=footnote
+        p.font.size = Pt(10)
+        p.font.language_id = 3076
+        p.font.name='Microsoft YaHei UI'
+        p.font.color.rgb=RGBColor(127,127,127)
         try:
             txBox.text_frame.fit_text(max_size=10)
         except:
             pass
             #print('cannot fit the size of font')
+
+
     # 插图图表
     chart_type_code=chart_list[chart_type][1]
     chart_data=df_to_chartdata(df,chart_type_code)
@@ -780,7 +789,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             if '%s'%key == 'nan':
                 del  code[current_name]['code'][key]
     
-    # 处理一些特殊题目，如年龄、收入等
+    # 处理一些特殊题目，给它们的选项固定顺序，例如年龄、收入等
     for k in code.keys():
         if ('code' in code[k]) and code[k]['code']:
             tmp1=code[k]['code'].keys()
@@ -794,7 +803,11 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                     tmp_key=list(tmp1)
                 code_order=[code[k]['code'][v] for v in tmp_key]
                 code[k]['code_order']=code_order
-   
+    try:
+        d2[u'所用时间']=d2[u'所用时间'].map(lambda s: int(s[:-1]))
+    except:
+        pass
+    
     return (d2,code)
 
 ## ===========================================================
