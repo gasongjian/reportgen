@@ -368,6 +368,38 @@ def plot_textbox(prs,layouts=[0,5],title=u'我是文本框页标题',summary=u'�
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
 
+def pptx_layouts(prs):
+    '''给定模板，自动识别标题版式
+    prs可以是pptx对象，也可以是新的模板路径
+    '''
+    if isinstance(prs,str) and os.path.exists(prs):
+        prs=Presentation(prs)
+    slide_width=prs.slide_width
+    slide_height=prs.slide_height
+    title_only_slide=[]
+    #blank_slide=[]
+    for i in range(len(prs.slide_masters)):
+        slides=prs.slide_masters[i]
+        #print('第{}个有{}个版式'.format(i,m1))
+        for j in range(len(slides.slide_layouts)):
+            slide=slides.slide_layouts[j]
+            title_slide=0
+            placeholder_size=0
+            for k in range(len(slide.shapes)):
+                shape=slide.shapes[k]
+                if shape.is_placeholder and shape.has_text_frame:
+                    placeholder_size+=1
+                    left,top=shape.left/slide_width,shape.top/slide_height                   
+                    height=shape.height/slide_height                
+                    if left<0.15 and top<0.15 and height <0.25:
+                        title_slide+=1
+            #print('{}个占位符,{}个title'.format(placeholder_size,title_slide))
+            if placeholder_size==1 and title_slide==1:
+                title_only_slide.append([i,j])
+            #if placeholder_size==0:
+                #blank_slide.append((i,j))
+    return title_only_slide
+
 
 #=================================================================
 #
@@ -1862,9 +1894,16 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
 
     # ================I/O接口=============================
-    if template:
+    if isinstance(template,dict):
         prs=Presentation(template['path'])
         layouts=template['layouts']
+    elif isinstance(template,str):
+        prs=Presentation(template)
+        title_only_slide=pptx_layouts(prs)
+        if title_only_slide:
+            layouts=title_only_slide[0]
+        else:
+            layouts=[0,0]
     else:
         prs = Presentation()
         layouts=[0,5]
@@ -2084,9 +2123,16 @@ max_column_chart=20,template=None):
     sample_len=len(data)
 
     # ================I/O接口=============================
-    if template:
+    if isinstance(template,dict):
         prs=Presentation(template['path'])
         layouts=template['layouts']
+    elif isinstance(template,str):
+        prs=Presentation(template)
+        title_only_slide=pptx_layouts(prs)
+        if title_only_slide:
+            layouts=title_only_slide[0]
+        else:
+            layouts=[0,0]
     else:
         prs = Presentation()
         layouts=[0,5]
