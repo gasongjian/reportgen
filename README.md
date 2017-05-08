@@ -38,6 +38,8 @@ rpt.summary_chart(data,code,filename=u'调研报告初稿');
 1. `调研报告初稿.pptx`: 针对每个题目描述统计，支持单选题、多选题、排序题、矩阵单选题等
 2. `调研报告初稿.xlsx`: 生成每个题目的统计数据，包括频数和占比
 
+![](https://github.com/gasongjian/reportgen/tree/master/report/demo/demo1.png)
+
 ### 2.2 四行代码解决交叉统计报告
 
 
@@ -55,7 +57,7 @@ rpt.cross_chart(data,code,cross_class='Q1',filename=u'性别差异分析');
 3. `性别差异分析_FE.xlsx`:
 4. `性别差异分析_TGI.xlsx`:
 5. `性别差异分析_CHI.xlsx`:
-
+![](https://github.com/gasongjian/reportgen/tree/master/report/demo/demo2.png)
 
 ### 2.3 常用函数
 
@@ -195,6 +197,8 @@ data,code=rpt.wenjuanwang(['All_Data_Readable.csv','All_Data_Original.csv','code
 # 参数如果缺省，函数会自动在工作目录的 `.\\data\\`文件夹中寻找
 
 ```
+
+待写.....
 
 ### 3.3 数据预处理
 
