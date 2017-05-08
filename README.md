@@ -40,6 +40,8 @@ rpt.summary_chart(data,code,filename=u'调研报告初稿');
 
  ![描述统计报告](https://github.com/gasongjian/reportgen/tree/master/report/demo/demo1.png)
 
+![描述统计报告](/report/demo/demo1.png?raw=true "Optional Title")
+
 ### 2.2 四行代码解决交叉统计报告
 
 
