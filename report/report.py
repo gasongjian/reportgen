@@ -53,21 +53,30 @@ def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=T
     df=pd.DataFrame(df)
     rows, cols = df.shape
     res = slide.shapes.add_table(rows+columns_names, cols+index_names, left, top, width, height)
+    # 固定表格的宽度
     '''
     for c in range(cols+rownames):
         res.table.columns[c].width = colwidth
+        res.table.rows[c].width = colwidth
     '''
     # Insert the column names
     if columns_names:
         for col_index, col_name in enumerate(list(df.columns)):
-            res.table.cell(0,col_index+index_names).text = '%s'%(col_name)
+            cell=res.table.cell(0,col_index+index_names)
+            #cell.text_frame.fit_text(max_size=12)
+            cell.text = '%s'%(col_name)            
     if index_names:
         for col_index, col_name in enumerate(list(df.index)):
-            res.table.cell(col_index+columns_names,0).text = '%s'%(col_name)
+            cell=res.table.cell(col_index+columns_names,0)
+            cell.text = '%s'%(col_name)
+            #cell.text_frame.fit_text(max_size=12)
     m = df.as_matrix()
     for row in range(rows):
         for col in range(cols):
-            res.table.cell(row+columns_names, col+index_names).text = '%s'%(m[row, col])
+            cell=res.table.cell(row+columns_names, col+index_names)
+            cell.text = '%s'%(m[row, col])
+            #cell.text_frame.fit_text(max_size=12)
+            
 
 def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短的结论'):
     '''根据给定的数据，在给定的prs上新增一页表格ppt
@@ -984,11 +993,33 @@ def sa_to_ma(data):
     return data_ma
 
 
-def binomial_interval(p,n,alpha=0.05):
+def confidence_interval(p,n,alpha=0.05):
     import scipy.stats as stats
-    a=p-stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
-    b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
-    return (a,b)
+    t=stats.norm.ppf(1-alpha/2)
+    ci=t*math.sqrt(p*(1-p)/n)
+    #a=p-stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
+    #b=p+stats.norm.ppf(1-alpha/2)*math.sqrt(p*(1-p)/n)
+    return ci
+
+def sample_size_cal(interval,N,alpha=0.05):
+    '''调研样本量的计算
+    参考：https://www.surveysystem.com/sscalc.htm
+    sample_size_cal(interval,N,alpha=0.05)
+    输入：
+    interval: 误差范围,例如0.03
+    N: 总体的大小,一般1万以上就没啥差别啦
+    alpha：置信水平，默认95%
+    '''
+    import scipy.stats as stats
+    p=stats.norm.ppf(1-alpha/2)
+    if interval>1:
+        interval=interval/100
+    samplesize=p**2/4/interval**2
+    if N:
+        samplesize=samplesize*N/(samplesize+N)
+    samplesize=int(round(samplesize))
+    return samplesize
+    
 
 def gof_test(fo,fe=None,alpha=0.05):
     '''拟合优度检验
@@ -2149,6 +2180,13 @@ max_column_chart=20,template=None):
     title=u'说明'
     summary=u'有效样本为%d'%sample_len
     plot_textbox(prs,title=title,summary=summary,layouts=layouts)
+    # 此处修改以下，增加一个置信区间的查询表
+    '''
+    w=pd.DataFrame(index=[(i+1)*0.05 for i in range(10)],columns=['比例','置信区间'])
+    w['比例']=w.index
+    w['置信区间']=w['比例'].map(lambda x:rpt.confidence_interval(x,267))
+    w['置信区间']=w['置信区间'].map(lambda x:'{:.1f}%'.format(x*100))
+    '''
 
 
     for qq in summary_qlist:
