@@ -64,6 +64,7 @@ def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=T
         for col_index, col_name in enumerate(list(df.columns)):
             cell=res.table.cell(0,col_index+index_names)
             #cell.text_frame.fit_text(max_size=12)
+            #cell.text_frame.text='%s'%(col_name)
             cell.text = '%s'%(col_name)            
     if index_names:
         for col_index, col_name in enumerate(list(df.index)):
@@ -2178,15 +2179,20 @@ max_column_chart=20,template=None):
     plot_cover(prs,layouts=layouts,title=filename)  
     # ================背景页=============================
     title=u'说明'
-    summary=u'有效样本为%d'%sample_len
-    plot_textbox(prs,title=title,summary=summary,layouts=layouts)
-    # 此处修改以下，增加一个置信区间的查询表
-    '''
+    qtype_count=[code[k]['qtype'] for k in code]
+    qtype_count=[[qtype,qtype_count.count(qtype)] for qtype in set(qtype_count)]
+    qtype_count=sorted(qtype_count,key=lambda x:x[1],reverse=True)
+    summary='该数据一共有{}个题目,其中有'.format(len(code))
+    summary+=','.join(['{} {} 道'.format(t[0],t[1]) for t in qtype_count])
+    summary+='.\n 经统计, 该数据有效样本数为 {} 份。下表是在该样本数下，各比例对应的置信区间(置信水平95%).'.format(sample_len)
     w=pd.DataFrame(index=[(i+1)*0.05 for i in range(10)],columns=['比例','置信区间'])
     w['比例']=w.index
-    w['置信区间']=w['比例'].map(lambda x:rpt.confidence_interval(x,267))
-    w['置信区间']=w['置信区间'].map(lambda x:'{:.1f}%'.format(x*100))
-    '''
+    w['置信区间']=w['比例'].map(lambda x:confidence_interval(x,sample_len))
+    w['置信区间']=w['置信区间'].map(lambda x:'±{:.1f}%'.format(x*100))
+    w['比例']=w['比例'].map(lambda x:'{:.0f}% / {:.0f}%'.format(x*100,100-100*x))
+    w=w.set_index('比例')
+    plot_table(prs,w,title=title,summary=summary,layouts=layouts)
+    
 
 
     for qq in summary_qlist:
