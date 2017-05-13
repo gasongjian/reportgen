@@ -1277,7 +1277,11 @@ def table(data,code,total=True):
     if (not total) and not(result['fo'] is None) and (u'合计' in result['fo'].index):
         result['fo'].drop([u'合计'],axis=0,inplace=True)
         result['fop'].drop([u'合计'],axis=0,inplace=True)
-    return result   
+    if not(result['fo'] is None) and ('code_order' in code):
+        code_order=[q for q in code['code_order'] if q in result['fo'].index]
+        result['fo']=pd.DataFrame(result['fo'],index=code_order)
+        result['fop']=pd.DataFrame(result['fop'],index=code_order)
+    return result
 
 def ntable(data,code):
     '''【后期将删除】
@@ -1774,6 +1778,52 @@ def contingency(fo,alpha=0.05):
     cdata['summary']=summary
     return cdata
 
+def pre_cross_qlist(data,code):
+    '''自适应给出可以进行交叉分析的变量和相应选项
+    返回：
+    cross_qlist: [[题目序号,变量选项],]
+    '''
+    cross_qlist=[]
+    for qq in code:
+        qtype=code[qq]['qtype']
+        qlist=code[qq]['qlist']
+        content=code[qq]['content']
+        sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum() 
+        if qtype not in ['单选题']:
+            continue
+        if not(set(qlist) <= set(data.columns)):
+            continue
+        t=qtable(data,code,qq)['fo']
+        if 'code_order' in code[qq]:
+            code_order=code[qq]['code_order']
+            code_order=[q for q in code_order if q in t.index]
+            t=pd.DataFrame(t,index=code_order)
+        items=list(t.index)
+        code_values=list(code[qq]['code'].values())
+        if len(items)<=1:
+            continue
+        if all([isinstance(t,str) for t in code_values]):
+            if sum([len(t) for t in code_values])/len(code_values)>10:
+                continue
+        if ('code_order' in code[qq]) and (len(items)<10):
+            code_order=[q for q in code[qq]['code_order'] if q in t.index]
+            t=pd.DataFrame(t,index=code_order)
+            ind=np.where(t['频数']>=10)[0]
+            if len(ind)>0:
+                cross_order=list(t.index[range(ind[0],ind[-1]+1)])
+                cross_qlist.append([qq,cross_order])
+            continue
+        if re.findall('性别|年龄|gender|age',content.lower()):
+            cross_qlist.append([qq,items])
+            continue
+        if (len(items)<=sample_len_qq/30) and (len(items)<10):
+            cross_order=list(t.index[t['频数']>=10])
+            if cross_order:
+                cross_qlist.append([qq,cross_order])
+            continue
+    return cross_qlist
+
+
 def plot_cover(prs,title=u'reportgen工具包封面',layouts=[0,0],xspace=8,yspace=6):
     try:
         from delaunay import Delaunay2D
@@ -2140,6 +2190,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     return result
 
 
+
 def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
 max_column_chart=20,template=None):
 
@@ -2221,7 +2272,7 @@ max_column_chart=20,template=None):
         # =======数据修正==============
         if 'code_order' in code[qq]:
             code_order=code[qq]['code_order']
-            #code_order=[q for q in code_order if q in t.index]
+            code_order=[q for q in code_order if q in t.index]
             if u'合计' in t.index:
                 code_order=code_order+[u'合计']
             t=pd.DataFrame(t,index=code_order)
@@ -2298,7 +2349,27 @@ max_column_chart=20,template=None):
     Writer.save()
     return result
 
-
+def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None):
+    '''一键生成所有可能需要的报告
+    包括
+    描述统计报告
+    单选题的交叉分析报告
+    '''
+    summary_chart(data,code,filename=filename,template=template);
+    print('已生成 '+filename)
+    cross_qlist=pre_cross_qlist(data,code)
+    if len(cross_qlist)==0:
+        return None
+    for cross_qq in cross_qlist:
+        qq=cross_qq[0]
+        cross_order=cross_qq[1]
+        filename='{}_差异分析'.format(qq)
+        save_dstyle=['TGI','CHI']
+        cross_chart(data,code,qq,filename=filename,cross_order=cross_order,\
+        save_dstyle=save_dstyle,template=template);
+        print('已生成 '+filename)
+    return None
+    
 
 
 if __name__ == '__main__':

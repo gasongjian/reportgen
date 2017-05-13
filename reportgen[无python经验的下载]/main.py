@@ -113,7 +113,7 @@ while 1:
 ==========二、数据预处理=======.
 1. 筛选.
 2. 选项合并[暂不支持].
-3. 保存数据并进入下一步.
+3. 将更改保存到本地并进入下一步.
 4. 直接进入下一步.
 请输入相应的序号
 ''')
@@ -157,6 +157,7 @@ while 1:
     try:
         command = input('''
 ==========三、报告生成=======.
+x.  全自动一键生成.
 1. 描述统计报告自动生成
 2. 交叉分析报告自动生成.
 3. 单题描述统计
@@ -165,9 +166,16 @@ while 1:
 0. 退出程序(也可以输入exit或者quit).
 请输入相应的序号
 ''')
-            
+        if command in ['x','X']:
+            filename=input('请输入需要保存的文件名,缺省为reprotgen 报告自动生成: ')
+            if not filename:
+                filename=u'reprotgen 报告自动生成'
+            print('请耐心等待，脚本正在马不停蹄地工作中......')
+            rpt.onekey_gen(data,code,filename=filename,template=mytemplate);
+            print('\n 所有报告已生成, 请检查文件夹：'+os.path.join(os.getcwd(),'out'))
+            continue            
         if command in ['0','exit','quit']:
-            print('本工具包由JSong开发, 谢谢使用，再见..')
+            print('本工具包由JSong开发, 谢谢使用, 再见..')
             break
         if command=='1':
             filename=input('请输入需要保存的文件名,缺省为调研报告初稿: ')
