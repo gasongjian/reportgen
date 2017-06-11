@@ -1288,7 +1288,7 @@ def table(data,code,total=True):
         # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
         #topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
         #topn=len(index)
-        topn=data[index].fillna(0).as_matrix().flatten().max()
+        topn=data[index].fillna(0).max().max()
         topn=int(topn)
         qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
         top1=data.applymap(lambda x:int(x==1))
@@ -1306,10 +1306,11 @@ def table(data,code,total=True):
         t_topn=pd.DataFrame()
         for i in range(topn):
             t_topn['TOP%d'%(i+1)]=data.applymap(lambda x:int(x==i+1)).sum()
-        t_topn=t_topn/sample_len
         t_topn.sort_values(by=u'TOP1',ascending=False,inplace=True)
         t_topn.rename(index=code['code'],inplace=True)
-        result['TOPN']=t_topn
+        result['TOPN_fo']=t_topn#频数
+        result['TOPN']=t_topn/sample_len
+        result['weight']='+'.join(['TOP{}*{:.2f}'.format(i+1,(topn-i)*2.0/(topn+1)/topn) for i in range(topn)])
     else:
         result['fop']=None
         result['fo']=None
@@ -2351,6 +2352,8 @@ max_column_chart=20,template=None):
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
         title=qq+'['+qtype+']: '+qtitle
+        
+        # 各种题型的结论和相关注释。
         if (qtype in [u'单选题']) and 'fw' in result_t:
             summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
             if ('name' in code[qq]) and code[qq]['name']:
@@ -2358,6 +2361,8 @@ max_column_chart=20,template=None):
                     summary=u'这里是结论区域, 满意度平均值为：%.3f'%result_t['fw']
                 elif code[qq]['name']=='NPS':
                     summary=u'这里是结论区域, NPS值为：%.3f'%result_t['fw']
+        elif qtype =='排序题':
+            summary=u'这里是结论区域, “综合”指标的计算方法为 :={}/总频数.'.format(result_t['weight'])
         else:
             summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
@@ -2394,7 +2399,10 @@ max_column_chart=20,template=None):
         # 排序题特殊处理
         if (qtype == u'排序题') and ('TOPN' in result_t):
             plt_data=result_t['TOPN']
-            plt_data.to_excel(Writer,qq,startrow=Writer_rows,float_format='%.3f')
+            # 将频数和频数百分表保存至本地
+            tmp=pd.concat([result_t['TOPN'],result_t['TOPN_fo']],axis=1)
+            tmp.to_excel(Writer,qq,startrow=Writer_rows,float_format='%.3f')
+            
             Writer_rows=len(plt_data)+2
             plt_data=plt_data*100
             # =======数据修正==============
