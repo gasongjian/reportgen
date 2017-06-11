@@ -563,10 +563,11 @@ def save_code(code,filename='code.xlsx'):
 Qn.content: 题目内容
 Qn.qtype: 题目类型，包含:单选题、多选题、填空题、排序题、矩阵单选题等
 Qn.qlist: 题目列表，例如多选题对应着很多小题目
-Qn.code: 题目选项编码
+Qn.code: dict,题目选项编码
 Qn.code_r: 题目对应的编码(矩阵题目专有)
 Qn.code_order: 题目类别的顺序，用于PPT报告的生成[一般后期添加]
 Qn.name: 特殊类型，包含：城市题、NPS题等
+Qn.weight:dict,每个选项的权重
 '''
 
 def wenjuanwang(filepath='.\\data',encoding='gbk'):
@@ -703,6 +704,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     '''
     for name in d1.columns[headlen:]:
         tmp=re.findall(u'^(\d{1,2})[、：:]',name)
+        # 识别多选题、排序题
         if tmp:
             new_name='Q'+tmp[0]
             current_name='Q'+tmp[0]
@@ -722,6 +724,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[new_name]['qtype']=u'多选题'
             elif '→' in qcontent:
                 code[new_name]['qtype']=u'排序题'
+        # 识别矩阵单选题
         else:
             tmp2=re.findall(u'^第(\d{1,2})题\(.*?\)',name)
             if tmp2:
@@ -733,7 +736,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 current_name=new_name
                 new_name=new_name+'_R%s'%j
                 code[current_name]={}
-                code[current_name]['content']=current_name
+                code[current_name]['content']=current_name+'(问卷星数据中未找到题目具体内容)'
                 code[current_name]['qlist']=[]
                 code[current_name]['code']={}
                 code[current_name]['code_r']={}
@@ -833,11 +836,14 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     
     # 处理一些特殊题目，给它们的选项固定顺序，例如年龄、收入等
     for k in code.keys():
-        if ('code' in code[k]) and code[k]['code']:
+        content=code[k]['content']
+        qtype=code[k]['qtype']
+        if ('code' in code[k]) and (code[k]['code']!={}):
             tmp1=code[k]['code'].keys()
             tmp2=code[k]['code'].values()
-            tmp3=[len(re.findall('\d+','%s'%v))>0 for v in tmp2]
-            tmp4=[len(re.findall('-|~','%s'%v))>0 for v in tmp2]
+            # 识别选项是否是有序变量
+            tmp3=[len(re.findall('\d+','%s'%v))>0 for v in tmp2]#是否有数字
+            tmp4=[len(re.findall('-|~','%s'%v))>0 for v in tmp2]#是否有"-"或者"~"
             if (np.array(tmp3).sum()>=len(tmp2)-2) or (np.array(tmp4).sum()>=len(tmp2)*0.8-(1e-17)):
                 try:
                     tmp_key=sorted(code[k]['code'],key=lambda c:float(re.findall('[\d\.]+','%s'%c)[-1]))
@@ -845,6 +851,34 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                     tmp_key=list(tmp1)
                 code_order=[code[k]['code'][v] for v in tmp_key]
                 code[k]['code_order']=code_order
+            # 识别矩阵量表题
+            if qtype=='矩阵单选题':
+                tmp3=[int(re.findall('\d+','%s'%v)[0]) for v in tmp2 if re.findall('\d+','%s'%v)]
+                if (set(tmp3)<=set([0,1,2,3,4,5,6,7,8,9,10])) and (len(tmp3)==len(tmp2)):
+                    code[k]['weight']=dict(zip(tmp1,tmp3))
+                    continue
+            # 识别特殊题型
+            if ('性别' in content) and ('男' in tmp2) and ('女' in tmp2):
+                code[k]['name']='性别'
+            if ('gender' in content.lower()) and ('Male' in tmp2) and ('Female' in tmp2):
+                code[k]['name']='性别'
+            if (('年龄' in content) or ('age' in content.lower())) and (np.array(tmp3).sum()>=len(tmp2)-1):
+                code[k]['name']='年龄'
+            if ('满意度' in content) and ('整体' in content):
+                tmp3=[int(re.findall('\d+','%s'%v)[0]) for v in tmp2 if re.findall('\d+','%s'%v)]
+                if set(tmp3)<=set([0,1,2,3,4,5,6,7,8,9,10]):
+                    code[k]['name']='满意度'
+                    if len(tmp3)==len(tmp2):
+                        code[k]['weight']=dict(zip(tmp1,tmp3))
+            if ('意愿' in content) and ('推荐' in content):
+                tmp3=[int(re.findall('\d+','%s'%v)[0]) for v in tmp2 if re.findall('\d+','%s'%v)]
+                if set(tmp3)<=set([0,1,2,3,4,5,6,7,8,9,10]):
+                    code[k]['name']='NPS'
+                    if len(tmp3)==len(tmp2):
+                        weight=pd.Series(dict(zip(tmp1,tmp3)))
+                        weight=weight.replace(dict(zip([0,1,2,3,4,5,6,7,8,9,10],[-100,-100,-100,-100,-100,-100,-100,0,0,100,100])))
+                        code[k]['weight']=weight.to_dict()
+                
     try:
         d2[u'所用时间']=d2[u'所用时间'].map(lambda s: int(s[:-1]))
     except:
@@ -1233,15 +1267,17 @@ def table(data,code,total=True):
         fo=pd.DataFrame(columns=code['qlist'],index=sorted(code['code']))
         for i in fo.columns:
             fo.loc[:,i]=data[i].value_counts()
-        if 'weight' in code:
-            fw=pd.DataFrame(columns=[u'加权'],index=code['qlist'])
-            w=pd.Series(code['weight'])
-            for c in fo.columns:
-                t=fo[c]
-                t=t[w.index][t[w.index].notnull()]
-                fw.loc[c,u'加权']=(t*w).sum()/t.sum()
-            fw.rename(index=code['code_r'],inplace=True)
-            result['fw']=fw
+        if 'weight' not in code:
+            code['weight']=dict(zip(code['code'].keys(),code['code'].keys()))
+        fw=pd.DataFrame(columns=[u'加权'],index=code['qlist'])
+        w=pd.Series(code['weight'])
+        for c in fo.columns:
+            t=fo[c]
+            t=t[w.index][t[w.index].notnull()]
+            fw.loc[c,u'加权']=(t*w).sum()/t.sum()
+        fw.rename(index=code['code_r'],inplace=True)
+        result['fw']=fw
+        result['weight']=','.join(['{}:{}'.format(code['code'][c],code['weight'][c]) for c in code['code']])
         fo.rename(columns=code['code_r'],index=code['code'],inplace=True)
         fop=fo.copy()
         fop=fop/sample_len
@@ -1250,7 +1286,10 @@ def table(data,code,total=True):
     elif qtype == u'排序题':
         #提供综合统计和TOP1值统计
         # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
-        topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
+        #topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
+        #topn=len(index)
+        topn=data[index].fillna(0).as_matrix().flatten().max()
+        topn=int(topn)
         qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
         top1=data.applymap(lambda x:int(x==1))
         data_weight=data.replace(qsort)
@@ -1917,7 +1956,7 @@ def plot_cover(prs,title=u'reportgen工具包封面',layouts=[0,0],xspace=8,yspa
 
 
 
-def cross_chart(data,code,cross_class,filename=u'交叉分析', cross_qlist=None,\
+def cross_chart(data,code,cross_class,filename=u'交叉分析报告', cross_qlist=None,\
 delclass=None,plt_dstyle=None,cross_order=None,reverse_display=False,\
 total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
@@ -2191,7 +2230,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
 
 
-def summary_chart(data,code,filename=u'描述统计报告', summary_qlist=None,\
+def summary_chart(data,code,filename=u'整体统计报告', summary_qlist=None,\
 max_column_chart=20,template=None):
 
     # ===================参数预处理=======================
@@ -2222,6 +2261,7 @@ max_column_chart=20,template=None):
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
+    
     result={}#记录每道题的过程数据
     # 记录样本数等信息，用于输出
     conclusion=pd.DataFrame(index=summary_qlist,columns=[u'内容',u'题型',u'样本数'])
@@ -2262,7 +2302,14 @@ max_column_chart=20,template=None):
         conclusion.loc[qq,u'内容']=qtitle
         conclusion.loc[qq,u'题型']=qtype
         conclusion.loc[qq,u'样本数']=sample_len_qq
-                      
+        # 填空题只统计数据，不绘图
+        if qtype == '填空题':
+            startcols=0
+            for qqlist in qlist:
+                tmp=pd.DataFrame(data[qqlist].value_counts()).reset_index()
+                tmp.to_excel(Writer,qq,startcol=startcols,index=False)
+                startcols+=3
+            continue              
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         result_t=table(data[qlist],code=code[qq])
@@ -2281,8 +2328,11 @@ max_column_chart=20,template=None):
         t1.fillna(0,inplace=True)
         
         # =======保存到Excel中========
+        Writer_rows=0
         t2=pd.concat([t,t1],axis=1)
-        t2.to_excel(Writer,qq,index_label=qq,float_format='%.3f')
+        t2.to_excel(Writer,qq,startrow=Writer_rows,index_label=qq,float_format='%.3f')
+        Writer_rows+=len(t2)+2
+
 
         '''显著性分析[暂缺]
         cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
@@ -2293,14 +2343,21 @@ max_column_chart=20,template=None):
             plt_data=t*100
         else:
             plt_data=t.copy()
+        '''
         if (qtype in ['矩阵单选题']) and ('fw' in result_t):
             plt_data=result_t['fw']
+        '''
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
         title=qq+'['+qtype+']: '+qtitle
         if (qtype in [u'单选题']) and 'fw' in result_t:
             summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
+            if ('name' in code[qq]) and code[qq]['name']:
+                if code[qq]['name']=='满意度':
+                    summary=u'这里是结论区域, 满意度平均值为：%.3f'%result_t['fw']
+                elif code[qq]['name']=='NPS':
+                    summary=u'这里是结论区域, NPS值为：%.3f'%result_t['fw']
         else:
             summary=u'这里是结论区域.'
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
@@ -2318,9 +2375,28 @@ max_column_chart=20,template=None):
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
 
+        # 矩阵单选题特殊处理
+        if (qtype == u'矩阵单选题') and ('fw' in result_t):
+            plt_data=result_t['fw']
+            plt_data.rename(columns={u'加权':u'平均值'},inplace=True)
+            plt_data.to_excel(Writer,qq,startrow=Writer_rows,float_format='%.3f')
+            Writer_rows=len(plt_data)+2
+            plt_data.fillna(0,inplace=True)
+            title='[平均值]'+title
+            summary=summary+' 该平均分采用的权值是:\n'+result_t['weight']
+            if len(plt_data)>max_column_chart:
+                plot_chart(prs,plt_data[::-1],'BAR_STACKED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+            else:
+                plot_chart(prs,plt_data,'COLUMN_STACKED',title=title,summary=summary,\
+                footnote=footnote,layouts=layouts)
+                
         # 排序题特殊处理
         if (qtype == u'排序题') and ('TOPN' in result_t):
-            plt_data=result_t['TOPN']*100
+            plt_data=result_t['TOPN']
+            plt_data.to_excel(Writer,qq,startrow=Writer_rows,float_format='%.3f')
+            Writer_rows=len(plt_data)+2
+            plt_data=plt_data*100
             # =======数据修正==============
             if 'code_order' in code[qq]:
                 code_order=code[qq]['code_order']
