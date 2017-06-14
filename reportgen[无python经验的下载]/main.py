@@ -5,8 +5,6 @@ Created on Mon Apr  3 13:16:07 2017
 @author: gason
 """
 
-# simple_run.py
-
 # -*- coding: utf-8 -*-
 
 import sys
@@ -27,11 +25,11 @@ while 1:
     #print('=' * 70)
     try:
         command = input('''
-==========一、数据准备=======.
-1. 从问卷星导入数据并编码.
+==========一、数据导入=======
+1.从问卷星导入数据并编码.
 2.从问卷网导入数据并编码.
 3.直接导入已编码好的数据.
-请输入相应的序号
+请输入相应的序号:
 ''')
             
         if command in ['0','exit']:
@@ -53,6 +51,7 @@ while 1:
             rpt.save_code(code,'code.xlsx')
             rpt.save_data(data,'data.xlsx')
             rpt.save_data(data,'data_readable.xlsx',code)
+            print('编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
             break
         if command=='2':
             print('准备导入问卷网数据，请确保“.\data\”文件夹下有按序号、按文本和code数据.')
@@ -70,6 +69,7 @@ while 1:
             rpt.save_code(code,'code.xlsx')
             rpt.save_data(data,'data.xlsx')
             rpt.save_data(data,'data_readable.xlsx',code)
+            print('编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
             break               
         if command=='3':
             data_name=input('请输入数据的文件名，缺省为 data.xlsx. 请输入:')
@@ -104,72 +104,25 @@ while 1:
 
 
 
-
-#==================================================================
-while 1:
-    #print('=' * 70)
-    try:
-        command = input('''
-==========二、数据预处理=======.
-1. 筛选.
-2. 选项合并[暂不支持].
-3. 将更改保存到本地并进入下一步.
-4. 直接进入下一步.
-请输入相应的序号
-''')
-            
-        if not command:
-            break
-        if command in ['0','4','exit']:
-            break
-        if command=='1':
-            qq=input('请选择需要筛选的变量,如Q1. 请输入:')
-            if (not qq) or not(qq in code):
-                print('请输入正确的题号...')
-                continue
-            if not('code' in code[qq]):
-                print('不支持该题目的筛选，请重新选择')
-                continue
-            print('您选择了{},该题目的编码如下:'.format(qq))
-            print('-'*20)
-            for c in code[qq]['code']:
-                print('{}: {}'.format(c,code[qq]['code'][c]))
-            print('-'*20)
-            itemlist=input('请选择需要保存的选项,输入前面的序号(多选可逗号隔开),如：1,2,3..请输入:')
-            if not itemlist:
-                print('请输入...')
-            itemlist=re.sub('，',',',itemlist)
-            itemlist=itemlist.split(',')
-            # 此处还有一些问题待修改
-            itemlist=[int(item) for item in itemlist if item.isalnum()]
-            itemlist=list(set(itemlist)&set(code[qq]['code'].keys()))
-            #data[qq]==
-    except Exception as e:
-        print(e)
-        print('错误..')
-
-
-
-
 #=======================================================================
 while 1:
     print('=' * 70)
     try:
         command = input('''
-==========三、报告生成=======.
-x.  全自动一键生成.
-1. 描述统计报告自动生成
-2. 交叉分析报告自动生成.
+==========二、报告生成=======.
+x. 全自动一键生成
+1. 整体统计报告自动生成
+2. 交叉分析报告自动生成
 3. 单题描述统计
 4. 单题交叉分析
 5. 单题对应分析
-0. 退出程序(也可以输入exit或者quit).
-请输入相应的序号
+0. 退出程序(也可以输入exit或者quit)
+请输入相应的序号:
 ''')
         if command in ['x','X']:
-            filename=input('请输入需要保存的文件名,缺省为reprotgen 报告自动生成: ')
+            filename=input('请输入需要保存的文件名,缺省为 reprotgen报告自动生成: ')
             if not filename:
-                filename=u'reprotgen 报告自动生成'
+                filename=u'reprotgen报告自动生成'
             print('请耐心等待，脚本正在马不停蹄地工作中......')
             rpt.onekey_gen(data,code,filename=filename,template=mytemplate);
             print('\n 所有报告已生成, 请检查文件夹：'+os.path.join(os.getcwd(),'out'))
@@ -186,6 +139,7 @@ x.  全自动一键生成.
             continue
         if command=='2':
             qq=input('请输入需要交叉分析的变量(例如: Q1): ')
+            qq=qq.upper()
             if qq in code:
                 print('您输入的是%s: %s'%(qq,code[qq]['content']))
             else:
@@ -206,6 +160,7 @@ x.  全自动一键生成.
                 continue                  
         if command=='3':
             qq=input('请输入需要统计的变量(例如: Q1): ')
+            qq=qq.upper()
             if qq in code:
                 print('您输入的是%s: %s'%(qq,code[qq]['content']))
             else:

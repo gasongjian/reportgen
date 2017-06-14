@@ -1,4 +1,4 @@
 @echo off
-color 0e
-python main.py
+color 2e
+python -W ignore main.py
 pause
