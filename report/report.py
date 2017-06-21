@@ -657,7 +657,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     '''问卷星数据导入和编码
     输入：
     filepath:
-        列表，[0]为按文本数据路径，[1]为按序号文本
+        列表, filepath[0]: (23_22_0.xls)为按文本数据路径，filepath[1]: (23_22_2.xls)为按序号文本
         文件夹路径，函数会自动在文件夹下搜寻相关数据，优先为\d+_\d+_0.xls和\d+_\d+_2.xls
     headlen: 问卷星数据基础信息的列数
     输出：
@@ -1966,7 +1966,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     code: 数据编码
     cross_class: 交叉变量，单选题或者多选题，例如：Q1
     filename：文件名,用于PPT和保存相关数据
-    cross_list: 需要交叉分析的变量，缺省为code中的所有变量
+    cross_list: 需要进行交叉分析的变量，缺省为code中的所有变量
     delclass: 交叉变量中需要删除的单个变量，缺省空
     plt_dstyle: 绘制图表需要用的数据类型，默认为百分比表，可以选择['TGI'、'CHI'、'TWI']等
     save_dstyle: 需要保存的数据类型，格式为列表。

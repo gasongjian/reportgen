@@ -16,6 +16,9 @@ import time
 import pandas as pd
 import report as rpt
 
+import warnings
+warnings.filterwarnings("ignore")
+
 mytemplate='template.pptx'
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
@@ -37,8 +40,45 @@ while 1:
             break
         if command=='1':
             print('准备导入问卷星数据，请确保“.\data\”文件夹下有按序号和按文本数据(如100_100_0.xls、100_100_2.xls).')
+            filepath='.\\data'
+            if os.path.isdir(filepath):
+                filelist=os.listdir(filepath)
+                wjx_data={}
+                n1=n2=0
+                for f in filelist:
+                    s1=re.findall('(\d+_\d+)_0.xls',f)
+                    s2=re.findall('(\d+_\d+)_2.xls',f)
+                    if s1:
+                        if s1[0] in wjx_data:
+                            wjx_data[s1[0]][0]=f
+                        else:
+                            wjx_data[s1[0]]=[f,'']
+                    if s2:
+                        if s2[0] in wjx_data:
+                            wjx_data[s2[0]][1]=f
+                        else:
+                            wjx_data[s2[0]]=['',f]
+                tmp=[k for k in wjx_data if int(len(wjx_data[k][0])>0)+int(len(wjx_data[k][1])>0)==2]
+                if len(tmp)==1:
+                    # 刚好只识别出一组问卷星数据
+                    filename1=os.path.join(filepath,tmp[0]+'_0.xls')
+                    filename2=os.path.join(filepath,tmp[0]+'_2.xls')
+                elif len(tmp)>1:
+                    print('脚本识别出多组问卷星数据，请选择需要编码的数据：')
+                    for i,k in enumerate(tmp):
+                        print('{i}:  {k}'.format(i=i+1,k=k+'_0.xls/'+k+'_2.xls'))
+                    ii=input('您选择的数据是(数据前的编码，如：1):')
+                    if ii.isnumeric():
+                        filename1=os.path.join(filepath,tmp[int(ii)-1]+'_0.xls')
+                        filename2=os.path.join(filepath,tmp[int(ii)-1]+'_2.xls')
+                    else:
+                        print('您输入正确的编码.')
+                        continue
+                else:
+                    print('在.\\data目录下没有找到任何的问卷星数据，请返回检查.')
+                    continue          
             try:
-                data,code=rpt.wenjuanxing()
+                data,code=rpt.wenjuanxing([filename1,filename2])
             except Exception as e:
                 print(e)
                 print('问卷星数据导入失败, 请检查.')
@@ -102,7 +142,7 @@ while 1:
         print(e)
         print('错误..')
 
-
+os.system('pause')
 
 #=======================================================================
 while 1:
@@ -126,7 +166,7 @@ x. 全自动一键生成
             print('请耐心等待，脚本正在马不停蹄地工作中......')
             rpt.onekey_gen(data,code,filename=filename,template=mytemplate);
             print('\n 所有报告已生成, 请检查文件夹：'+os.path.join(os.getcwd(),'out'))
-            continue            
+            continue
         if command in ['0','exit','quit']:
             print('本工具包由JSong开发, 谢谢使用, 再见..')
             break
