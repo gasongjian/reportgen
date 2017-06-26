@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import math
+import time
 
 
 
@@ -409,6 +410,26 @@ def pptx_layouts(prs):
             #if placeholder_size==0:
                 #blank_slide.append((i,j))
     return title_only_slide
+
+def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
+    if os.path.exists('template.pptx'):
+        prs=Presentation('template.pptx')
+    else:
+        prs=Presentation()
+    title_only_slide=pptx_layouts(prs)
+    if title_only_slide:
+        layouts=title_only_slide[0]
+    else:
+        layouts=[0,0]
+    if not filename:
+        filename=time.strftime('%Y%m%d%H%M.pptx', time.localtime())
+    if not isinstance(df,list):
+        df=[df]  
+    for df0 in df:
+        plot_chart(prs,df0,chart_type,title='',summary='',layouts=layouts)
+    prs.save(filename)
+    
+
 
 
 #=================================================================
@@ -1745,7 +1766,7 @@ def contingency(fo,alpha=0.05):
     fe=fo.copy()
     N=fo.sum().sum()
     if N==0:
-        print('rpt.contingency:: fo的样本数为0,请检查数据')
+        #print('rpt.contingency:: fo的样本数为0,请检查数据')
         return cdata
     for i in fe.index:
         for j in fe.columns:
@@ -1820,6 +1841,10 @@ def contingency(fo,alpha=0.05):
 
 def pre_cross_qlist(data,code):
     '''自适应给出可以进行交叉分析的变量和相应选项
+    满足以下条件的将一键交叉分析：
+    1、单选题
+    2、如果选项是文本，则平均长度应小于10
+    ...
     返回：
     cross_qlist: [[题目序号,变量选项],]
     '''
@@ -1843,7 +1868,7 @@ def pre_cross_qlist(data,code):
         if len(items)<=1:
             continue
         if all([isinstance(t,str) for t in code_values]):
-            if sum([len(t) for t in code_values])/len(code_values)>10:
+            if sum([len(t) for t in code_values])/len(code_values)>15:
                 continue
         if ('code_order' in code[qq]) and (len(items)<10):
             code_order=[q for q in code[qq]['code_order'] if q in t.index]
@@ -2447,8 +2472,11 @@ def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None)
     for cross_qq in cross_qlist:
         qq=cross_qq[0]
         cross_order=cross_qq[1]
-        filename='{}_差异分析'.format(qq)
-        save_dstyle=['TGI','CHI']
+        if ('name' in code[qq]) and (code[qq]['name']!=''):
+            filename='{}_差异分析'.format(code[qq]['name'])
+        else:
+            filename='{}_差异分析'.format(qq)
+        save_dstyle=None #['TGI','CHI']
         cross_chart(data,code,qq,filename=filename,cross_order=cross_order,\
         save_dstyle=save_dstyle,template=template);
         print('已生成 '+filename)
