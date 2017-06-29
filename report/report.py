@@ -1295,7 +1295,10 @@ def table(data,code,total=True):
         for c in fo.columns:
             t=fo[c]
             t=t[w.index][t[w.index].notnull()]
-            fw.loc[c,u'加权']=(t*w).sum()/t.sum()
+            if t.sum()>1e-17:
+                fw.loc[c,u'加权']=(t*w).sum()/t.sum()
+            else:
+                fw.loc[c,u'加权']=0
         fw.rename(index=code['code_r'],inplace=True)
         result['fw']=fw
         result['weight']=','.join(['{}:{}'.format(code['code'][c],code['weight'][c]) for c in code['code']])
@@ -2095,10 +2098,14 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         # 交叉统计
-        if reverse_display:
-            result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
-        else:
-            result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+        try:
+            if reverse_display:
+                result_t=crosstab(data_column,data_index,code_index=code[cross_class],code_column=code[qq])
+            else:
+                result_t=crosstab(data_index,data_column,code_index=code[qq],code_column=code[cross_class])
+        except :
+            print('脚本在处理{}时出了一天小问题.....')
+            continue
         if ('fo' in result_t) and ('fop' in result_t):
             t=result_t['fop']
             t1=result_t['fo']
@@ -2338,7 +2345,11 @@ max_column_chart=20,template=None):
             continue              
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
-        result_t=table(data[qlist],code=code[qq])
+        try:
+            result_t=table(data[qlist],code=code[qq])
+        except :
+            print(u'脚本处理 {} 时出了一点小问题.....'.format(qq))
+            continue
         t=result_t['fop']
         t1=result_t['fo']
 
