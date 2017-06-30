@@ -1,0 +1,45 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jun 30 16:22:15 2017
+
+@author: 10206913
+"""
+
+import report as rpt
+import pandas as pd
+
+
+
+
+def spec_rcode(data,code):
+    for k in code:
+        qlist=code[k]['qlist']
+        qtype=code[k]['qtype']
+        content=code[k]['content']
+        data1=data[qlist]
+        
+data,code=rpt.wenjuanxing()
+data=data[data['所用时间']>=300]
+data=data.drop_duplicates(['Q40'])
+code=rpt.read_code('code.xlsx')
+# 省份和城市
+data['Q39a']=data['Q39'].map(lambda x:x.split('-')[0])
+data['Q39b']=data['Q39'].map(lambda x:x.split('-')[1])
+data.loc[data['Q39a']==u'上海','Q39b']=u'上海'
+data.loc[data['Q39a']==u'北京','Q39b']=u'北京'
+data.loc[data['Q39a']==u'天津','Q39b']=u'天津'
+data.loc[data['Q39a']==u'重庆','Q39b']=u'重庆'
+data.loc[data['Q39a']==u'香港','Q39b']=u'香港'
+data.loc[data['Q39a']==u'澳门','Q39b']=u'澳门'
+
+# 城市划归
+city=pd.read_excel(u'F:\mypython3\datasets\city_grades.xlsx')
+city.set_index('name',inplace=True)
+#d[u'city_grades']=d[u'city'].replace(list(city['name']),list(city[u'grade']))
+data[u'Q39c']=data['Q39b'].map(lambda x: city.loc[x,'grade'] if x in city.index else x)
+data[u'Q39c']=data[u'Q39c'].map(lambda x: 6 if isinstance(x,str) else x)
+
+code['Q39c']={'content':'城市分级','qtype':'单选题','qlist':['Q39c'],'code':
+    {0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
+rpt.save_data(data)
+rpt.save_code(code)
