@@ -426,7 +426,7 @@ def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
     if not isinstance(df,list):
         df=[df]  
     for df0 in df:
-        plot_chart(prs,df0,chart_type,title='',summary='',layouts=layouts)
+        plot_chart(prs,pd.DataFrame(df0),chart_type,title='',summary='',layouts=layouts)
     prs.save(filename)
     
 
@@ -914,7 +914,6 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 #
 #
 ## ==========================================================
-
 
 
 def data_auto_code(data):
@@ -2056,7 +2055,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             layouts=[0,0]
     else:
         prs = Presentation()
-        layouts=[0,5]
+        title_only_slide=pptx_layouts(prs)
+        if title_only_slide:
+            layouts=title_only_slide[0]
+        else:
+            layouts=[0,0]        
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     # 生成数据接口(因为exec&eval)
@@ -2290,7 +2293,11 @@ max_column_chart=20,template=None):
             layouts=[0,0]
     else:
         prs = Presentation()
-        layouts=[0,5]
+        title_only_slide=pptx_layouts(prs)
+        if title_only_slide:
+            layouts=title_only_slide[0]
+        else:
+            layouts=[0,0]
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
