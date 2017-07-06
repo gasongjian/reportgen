@@ -5,6 +5,7 @@ import math
 import types
 from collections import defaultdict, Iterable
 import itertools
+import pandas as pd
 
 class Apriori:
     def __init__(self, data, minSup, minConf):
@@ -87,7 +88,7 @@ class Apriori:
     def genRules(self, F):
         H = []
 
-        for k, itemset in F.iteritems():
+        for k, itemset in F.items():
             if k >= 2:
                 for item in itemset:
                     subsets = self.genSubsets(item)
@@ -136,6 +137,7 @@ class Apriori:
     key: Goods.Id
     val: frequency of Goods.Id in self.transList
     """
+    '''
     def prepData(self):
         key = 0
         for basket in self.dataset:
@@ -146,34 +148,59 @@ class Apriori:
                     self.transList[key].append(item.strip())
                     self.itemset.add(item.strip())
                     self.freqList[(item.strip())] += 1
+                    '''
+    def prepData(self):
+        data=self.dataset
+        data=data[data.T.notnull().all()]
+        data=data.fillna(0)
+        data=data.astype(bool)
+        data=data[data.T.any()]
+        data=data.loc[:,data.any()]
+        columns=pd.Series(data.columns)
+        k=list(data.index)
+        v=[list(columns[list(data.loc[i,:])]) for i in k]
+        self.numItems=len(data)
+        self.transList=defaultdict(list,dict(zip(k,v)))
+        self.itemset=set(data.columns)
+        self.freqList=defaultdict(int,data.sum().to_dict())
 
+
+
+
+goods=code['Q11']['code']
 
 def readable(item, goods):
     itemStr = ''
     for k, i in enumerate(item):
-        itemStr += goods[i][0] + " " + goods[i][1] +" (" + i + ")"
+        itemStr += goods[i]
         if len(item) != 0 and k != len(item)-1:
             itemStr += ",\t"
 
     return itemStr.replace("'", "")
 
+transList = defaultdict(list)
+freqList = defaultdict(int)
+itemset = set()
+highSupportList = list()
+numItems = 0
 
 
 #def main():
-goods = defaultdict(list)
-num_args = len(sys.argv)
+#goods = defaultdict(list)
 minSup = minConf = 0
 noRules = True
 
-dataset = csv.reader(open('1000-out1.csv', "r"))
-goodsData = csv.reader(open('goods.csv', "r"))
+#dataset = csv.reader(open('1000-out1.csv', "r"))
+dataset=data0[code['Q11']['qlist'][:10]]
+#goodsData = csv.reader(open('goods.csv', "r"))
 
-minSup  = .03
+minSup  = .10
 minConf = .7
-noRules = True
-
+noRules = False
+'''
 for item in goodsData:
     goods[item[0]] = item[1:]
+'''
 
 a = Apriori(dataset, minSup, minConf)
 
@@ -190,7 +217,8 @@ print("Skyline Itemsets: {}".format(count))
 if not noRules:
     rules = a.genRules(frequentItemsets)
     for i, rule in enumerate(rules):
-        print("Rule"+'s'%(i+1)+":\t "+readable(rule[0], goods)+"\t-->"+readable(rule[1], goods)+"\t [sup="+rule[2]+" conf="+rule[3]+"]")
+        print('Rule {}:\t {}\t-->{}\t [sup={} conf={}]'.format(i+1,readable(rule[0], goods),readable(rule[1], goods),rule[2],rule[3]))
+
 
 
 
