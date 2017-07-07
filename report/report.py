@@ -1568,10 +1568,11 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
     else:
         result['fop']=None
         result['fo']=None
+    # 去除总体
     if (not total) and not(result['fo'] is None) and ('总体' in result['fo'].columns):
         result['fo'].drop(['总体'],axis=1,inplace=True)
         result['fop'].drop(['总体'],axis=1,inplace=True)
-    if not(result['fo'] is None) and code_index and ('code_order' in code_index):
+    if not(result['fo'] is None) and code_index and ('code_order' in code_index) and qtype1!='矩阵单选题':
         code_order=code_index['code_order']
         code_order=[q for q in code_order if q in result['fo'].index]
         result['fo']=pd.DataFrame(result['fo'],index=code_order)
@@ -1699,7 +1700,7 @@ def qtable(data,*args):
     data：数据框，可以是所有的数据
     code:数据编码
     q1: 题目序号
-    q2:题目序号
+    q2: 题目序号
     # 单个变量的频数统计
     qtable(data,code,'Q1')
     # 两个变量的交叉统计
