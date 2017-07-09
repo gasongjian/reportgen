@@ -1731,28 +1731,22 @@ def qtable(data,*args):
         result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=False)
     return result
 
-def association_rules(df,code=None,minsup=0.03,mincon=0.5):
+def association_rules(df,minSup=0.08,minConf=0.4):
     '''关联规则分析
     df是一个观察频数表，返回其中存在的关联规则
     
     '''
-    from ass import apriori
-    a=apriori(df,minsup,mincon)
-    rules=a.genrules()
-    '''
-    index 是关联规则的code形式：[(X),(Y)]
-    columns[0]: 字符串形式,'X --> Y'
-    columns[1]: 支持度sup
-    columns[2]: 置信度con
-    columns[3]: 复合指标
-    '''
-    if code:
-        df=df.rename(columns=code)
+    try :
+        import relations as rlt
+    except :
+        print('没有找到关联分析需要的包: import relations')
+        return (None,None)
+    a=rlt.apriori(df, minSup, minConf)
+    rules,freq=a.genRules()
     if rules is None:
-        return None
-    rules=rules.iloc[:3,:]
-    result=';\n'.join(['{}: 支持度={}, 置信度={}'.format(rules.loc[ii,'name'],rules.loc[ii,'sup'],rules.loc[ii,'con']) for ii in rules.index])
-    return result
+        return (None,None)
+    result=';\n'.join(['{}:  支持度={:.1f}%, 置信度={:.1f}%'.format(rules.loc[ii,'rule'],100*rules.loc[ii,'sup'],100*rules.loc[ii,'conf']) for ii in rules.index[:4]])
+    return (result,rules)
 
 
 
@@ -2412,7 +2406,7 @@ max_column_chart=20,template=None):
             continue
         try:
             result_t=table(data[qlist],code=code[qq])
-        except :
+        except:
             print(u'脚本处理 {} 时出了一点小问题.....'.format(qq))
             continue
         t=result_t['fop']
@@ -2434,7 +2428,8 @@ max_column_chart=20,template=None):
         t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,startrow=Writer_rows,index_label=qq,float_format='%.3f')
         Writer_rows+=len(t2)+2
-
+        
+        # ==========根据个题型提取结论==================
         summary=''
         if qtype in ['单选题','多选题']:
             try:
@@ -2447,37 +2442,38 @@ max_column_chart=20,template=None):
                 summary+='拟合优度检验*不显著*'
             else:
                 summary+='不满足拟合优度检验条件'
-        '''
-        if qtype == '多选题'
-            aso_result=association_rules(t1)
+
+        if qtype == '多选题':
+            tmp=data[qlist].rename(columns=code[qq]['code'])
+            aso_result,rules=association_rules(tmp)
             numItem_mean=t1.sum().sum()/sample_len_qq
+            if u'合计' in t1.index:
+                numItem_mean=numItem_mean/2            
             if aso_result:
-                summary+=' || 平均每个样本{:.1f}个选项 || 找到的关联规则如下：\n{}'.format(numItem_mean,aso_result)
+                summary+=' || 平均每个样本选了{:.1f}个选项 || 找到的关联规则如下(只显示TOP4)：\n{}'.format(numItem_mean,aso_result)
+                rules.to_excel(Writer,qq,startrow=Writer_rows,index=False,float_format='%.3f')
+                Writer_rows+=len(rules)+2
             else:
-                summary+=' || 平均每个样本{:.1f}个选项 || 没有找到关联性较大的规则'.format(numItem_mean)
-        '''
+                summary+=' || 平均每个样本选了{:.1f}个选项 || 没有找到关联性较大的规则'.format(numItem_mean)
+
         # 各种题型的结论和相关注释。
         if (qtype in [u'单选题']) and 'fw' in result_t:
-            summary+=' || 加权平均值为：%.3f'%result_t['fw']
-            if ('name' in code[qq]) and code[qq]['name']:
-                if code[qq]['name']=='满意度':
-                    summary+=' || 满意度平均值为：%.3f'%result_t['fw']
-                elif code[qq]['name']=='NPS':
-                    summary+=' || NPS值为：%.3f'%result_t['fw']
+            tmp=u'加权平均值'
+            if ('name' in code[qq]) and code[qq]['name']==u'满意度':
+                    tmp=u'满意度平均值'
+            elif ('name' in code[qq]) and code[qq]['name']=='NPS':
+                    tmp=u'NPS值'
+            summary+=' || {}为：{:.3f}'.format(tmp,result_t['fw'])
         elif qtype =='排序题':
             summary+=' 此处“综合”指标的计算方法为 :={}/总频数.'.format(result_t['weight'])
         if len(summary)==0:
             summary+=u'这里是结论区域'
 
-        # 数据再加工
+        # ===============数据再加工==========================
         if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
-        '''
-        if (qtype in ['矩阵单选题']) and ('fw' in result_t):
-            plt_data=result_t['fw']
-        '''
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
@@ -2488,7 +2484,7 @@ max_column_chart=20,template=None):
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
         }
-        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是dataFrame
+        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是DataFrame
         if len(t)>max_column_chart:
             plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
@@ -2498,7 +2494,9 @@ max_column_chart=20,template=None):
         else:
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
-
+            
+            
+        #==============特殊题型处理===============
         # 矩阵单选题特殊处理
         if (qtype == u'矩阵单选题') and ('fw' in result_t):
             plt_data=result_t['fw']

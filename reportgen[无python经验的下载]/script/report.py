@@ -159,7 +159,7 @@ def df_to_chartdata(df,datatype,number_format=None):
         return chart_data
 
 def plot_chart(prs,df,chart_type,title=u'我是标题',summary=u'我是简短的结论',\
-footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
+footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     '''
     直接将数据绘制到一张ppt上，且高度定制化
     默认都有图例，且图例在下方
@@ -244,8 +244,8 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     # 添加标题 title=u'这里是标题'
     slide.shapes.title.text = title
     # 添加结论 summary=u'这里是一些简短的结论'
-    left,top = Emu(0.05*slide_width), Emu(0.10*slide_height)
-    width,height = Emu(0.7*slide_width), Emu(0.1*slide_height)
+    left,top = Emu(0.10*slide_width), Emu(0.14*slide_height)
+    width,height = Emu(0.80*slide_width), Emu(0.15*slide_height)
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
     txBox.text_frame.paragraphs[0].font.language_id = 3076
@@ -259,7 +259,7 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
     # 添加脚注 footnote=u'这里是脚注'
     if footnote:
         left,top = Emu(0.025*slide_width), Emu(0.95*slide_height)
-        width,height = Emu(0.70*slide_width), Emu(0.05*slide_height)
+        width,height = Emu(0.70*slide_width), Emu(0.10*slide_height)
         txBox = slide.shapes.add_textbox(left, top, width, height)
         #p = text_frame.paragraphs[0]
         p=txBox.text_frame.paragraphs[0]
@@ -275,13 +275,15 @@ footnote=None,chart_format=None,layouts=[0,5],has_data_labels=True):
             #print('cannot fit the size of font')
 
 
-    # 插图图表
+    # 插入图表
     chart_type_code=chart_list[chart_type][1]
     chart_data=df_to_chartdata(df,chart_type_code)
-    x, y = Emu(0.05*slide_width), Emu(0.20*slide_height)
-    cx, cy = Emu(0.85*slide_width), Emu(0.70*slide_height)
+    #left, top = Emu(0.05*slide_width), Emu(0.20*slide_height)
+    #width, height = Emu(0.85*slide_width), Emu(0.70*slide_height)
+    left, top = Emu(0.10*slide_width), Emu(0.30*slide_height)
+    width, height = Emu(0.80*slide_width), Emu(0.60*slide_height)
     chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0], \
-    x, y, cx, cy, chart_data).chart
+    left, top, width, height, chart_data).chart
 
     if chart_type_code in [-4169,72,73,74,75]:
         return
@@ -1094,7 +1096,7 @@ def gof_test(fo,fe=None,alpha=0.05):
         N=fo.sum() 
         fe=np.array([N/C]*C)
     else:
-        fe=np.array(fe).flatten()    
+        fe=np.array(fe).flatten()
     chi_value=(fo-fe)**2/fe
     chi_value=chi_value.sum()
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
@@ -1568,15 +1570,17 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
     else:
         result['fop']=None
         result['fo']=None
+    # 去除总体
     if (not total) and not(result['fo'] is None) and ('总体' in result['fo'].columns):
         result['fo'].drop(['总体'],axis=1,inplace=True)
         result['fop'].drop(['总体'],axis=1,inplace=True)
-    if not(result['fo'] is None) and code_index and ('code_order' in code_index):
+    # 顺序重排
+    if not(result['fo'] is None) and code_index and ('code_order' in code_index) and qtype1!='矩阵单选题':
         code_order=code_index['code_order']
         code_order=[q for q in code_order if q in result['fo'].index]
         result['fo']=pd.DataFrame(result['fo'],index=code_order)
         result['fop']=pd.DataFrame(result['fop'],index=code_order)
-    if not(result['fo'] is None) and code_column and ('code_order' in code_column):
+    if not(result['fo'] is None) and code_column and ('code_order' in code_column) and qtype2!='矩阵单选题':
         code_order=code_column['code_order']
         code_order=[q for q in code_order if q in result['fo'].columns]
         result['fo']=pd.DataFrame(result['fo'],columns=code_order)
@@ -1699,7 +1703,7 @@ def qtable(data,*args):
     data：数据框，可以是所有的数据
     code:数据编码
     q1: 题目序号
-    q2:题目序号
+    q2: 题目序号
     # 单个变量的频数统计
     qtable(data,code,'Q1')
     # 两个变量的交叉统计
@@ -1727,6 +1731,24 @@ def qtable(data,*args):
         result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=False)
     return result
 
+def association_rules(df,minSup=0.08,minConf=0.4):
+    '''关联规则分析
+    df是一个观察频数表，返回其中存在的关联规则
+    
+    '''
+    try :
+        import relations as rlt
+    except :
+        print('没有找到关联分析需要的包: import relations')
+        return (None,None)
+    a=rlt.apriori(df, minSup, minConf)
+    rules,freq=a.genRules()
+    if rules is None:
+        return (None,None)
+    result=';\n'.join(['{}:  支持度={:.1f}%, 置信度={:.1f}%'.format(rules.loc[ii,'rule'],100*rules.loc[ii,'sup'],100*rules.loc[ii,'conf']) for ii in rules.index[:4]])
+    return (result,rules)
+
+
 
 def contingency(fo,alpha=0.05):
     ''' 列联表分析：(观察频数表分析)
@@ -1745,7 +1767,7 @@ def contingency(fo,alpha=0.05):
     CHI：sqrt((fo-fe)(fo/fe-1))*sign(fo-fe)
     significant:{
     .'result': 显著性结果[1(显著),0(不显著),-1(fe小于5的过多)]
-    .'p-value':
+    .'pvalue':
     .'method': chi_test or fisher_test
     .'vcoef':
     .'threshold':
@@ -1763,8 +1785,16 @@ def contingency(fo,alpha=0.05):
     R,C=fo.shape
     if u'总体' in fo.columns:
         fo.drop([u'总体'],axis=1,inplace=True)
+    if any([(u'其他' in s) or (u'其它' in s) for s in fo.columns]):
+        tmp=[s for s in fo.columns if (u'其他' in s) or (u'其它' in s)]
+        for t in tmp:
+            fo.drop([t],axis=1,inplace=True)      
     if u'合计' in fo.index:
         fo.drop([u'合计'],axis=0,inplace=True)
+    if any([(u'其他' in s) or (u'其它' in s) for s in fo.index]):
+        tmp=[s for s in fo.index if (u'其他' in s) or (u'其它' in s)]
+        for t in tmp:
+            fo.drop([t],axis=0,inplace=True)
     fe=fo.copy()
     N=fo.sum().sum()
     if N==0:
@@ -1792,6 +1822,7 @@ def contingency(fo,alpha=0.05):
     fo=fo[fo.sum(axis=1)>10]
     if (fo.shape[0]<=1) or (np.any(fo.sum()==0)) or (np.any(fo.sum(axis=1)==0)):
         significant['result']=-2
+        significant['pvalue']=-2           
         significant['method']='fo not frequency'
     #elif ((fo<=5).sum().sum()>=threshold):
         #significant['result']=-1
@@ -1813,6 +1844,7 @@ def contingency(fo,alpha=0.05):
         if chiStats[1] <= alpha:
             significant['result']=1
         elif np.isnan(chiStats[1]):
+            significant['pvalue']=-2
             significant['result']=-1
         else:
             significant['result']=0
@@ -1828,15 +1860,31 @@ def contingency(fo,alpha=0.05):
     summary['chi_mean']=CHI.unstack().mean()
     #print('the std of CHI is %.2f'%summary['chi_std'])
     conclusion=''
-    for c in CHI.columns:
-        tmp=['%s'%s for s in list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])]
+    fo_rank=fo.sum().rank(ascending=False)# 给列选项排名，只分析排名在前4选项的差异
+    for c in fo_rank[fo_rank<5].index:#CHI.columns:        
+        #针对每一列，选出大于一倍方差的行选项，如果过多，则只保留前三个
+        tmp=list(CHI.loc[CHI[c]>summary['chi_mean']+summary['chi_std'],c].sort_values(ascending=False)[:3].index)
+        tmp=['%s'%s for s in tmp]# 把全部内容转化成字符串
         if tmp:
-            tmp1=u'{col}更喜欢{s}'.format(col=c,s=','.join(tmp))
+            tmp1=u'{col}：{s}'.format(col=c,s=' || '.join(tmp))
             conclusion=conclusion+tmp1+'; \n'
-    #conclusion=';'.join([u'{col}更喜欢{s}'.format(col=c,s=','.join(['%s'%s for s in \
-    #list(CHI.index[CHI[c]>summary['chi_mean']+summary['chi_std']])])) for c in CHI.columns])
-    if not conclusion:
-        conclusion=u'没有找到显著的结论'
+    if significant['result']==1:
+        if conclusion:
+            tmp='两个变量在95%置信水平下*显著*, 且CHI指标在一个标准差外的(即相对有差异的)有：\n'
+        else:
+            tmp='两个变量在95%置信水平下*显著*，但没有找到相对有差异的配对'
+    elif significant['result']==0:
+        if conclusion:
+            tmp='两个变量在95%置信水平下*不显著*, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
+        else:
+            tmp='两个变量在95%置信水平下*不显著*，且没有找到相对有差异的配对'
+    else:
+        if conclusion:
+            tmp='不满足显著性检验条件, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
+        else:
+            tmp='不满足显著性检验条件，且没有找到相对有差异的配对'
+    conclusion=tmp+conclusion
+
     summary['summary']=conclusion
     cdata['summary']=summary
     return cdata
@@ -2130,7 +2178,8 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             cross_order=[q for q in cross_order if q in t.index]
             t=pd.DataFrame(t,index=cross_order)
             t1=pd.DataFrame(t1,index=cross_order)
-        if 'code_order' in code[qq]:
+        '''在crosstab中已经重排了
+        if 'code_order' in code[qq] and qtype!='矩阵单选题':
             code_order=code[qq]['code_order']
             if reverse_display:
                 #code_order=[q for q in code_order if q in t.columns]
@@ -2142,6 +2191,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
                 #code_order=[q for q in code_order if q in t.index]
                 t=pd.DataFrame(t,index=code_order)
                 t1=pd.DataFrame(t1,index=code_order)
+        '''
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
 
@@ -2190,9 +2240,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             summary=u'这里是结论区域.'
         if 'significant' in cdata:
             sing_result=cdata['significant']['result']
+            sing_pvalue=cdata['significant']['pvalue']
         else:
             sing_result=-2
-        footnote=u'显著性检验结果为{result},数据来源于{qq},样本N={sample_len}'.format(result=sing_result,qq=qq,sample_len=sample_len)
+            sing_pvalue=-2
+        footnote=u'显著性检验的p值为{:.3f},数据来源于{},样本N={}'.format(sing_pvalue,qq,sample_len)
 
         # 保存相关数据
         conclusion.loc[qq,:]=qsample
@@ -2354,7 +2406,7 @@ max_column_chart=20,template=None):
             continue
         try:
             result_t=table(data[qlist],code=code[qq])
-        except :
+        except:
             print(u'脚本处理 {} 时出了一点小问题.....'.format(qq))
             continue
         t=result_t['fop']
@@ -2376,43 +2428,63 @@ max_column_chart=20,template=None):
         t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,startrow=Writer_rows,index_label=qq,float_format='%.3f')
         Writer_rows+=len(t2)+2
+        
+        # ==========根据个题型提取结论==================
+        summary=''
+        if qtype in ['单选题','多选题']:
+            try:
+                gof_result=gof_test(t1)
+            except :
+                gof_result=-2
+            if gof_result==1:
+                summary+='拟合优度检验*显著*'
+            elif gof_result==0:
+                summary+='拟合优度检验*不显著*'
+            else:
+                summary+='不满足拟合优度检验条件'
 
+        if qtype == '多选题':
+            tmp=data[qlist].rename(columns=code[qq]['code'])
+            aso_result,rules=association_rules(tmp)
+            numItem_mean=t1.sum().sum()/sample_len_qq
+            if u'合计' in t1.index:
+                numItem_mean=numItem_mean/2            
+            if aso_result:
+                summary+=' || 平均每个样本选了{:.1f}个选项 || 找到的关联规则如下(只显示TOP4)：\n{}'.format(numItem_mean,aso_result)
+                rules.to_excel(Writer,qq,startrow=Writer_rows,index=False,float_format='%.3f')
+                Writer_rows+=len(rules)+2
+            else:
+                summary+=' || 平均每个样本选了{:.1f}个选项 || 没有找到关联性较大的规则'.format(numItem_mean)
 
-        '''显著性分析[暂缺]
-        cc=contingency(t,col_dis=None,row_dis=None,alpha=0.05)
-        '''
+        # 各种题型的结论和相关注释。
+        if (qtype in [u'单选题']) and 'fw' in result_t:
+            tmp=u'加权平均值'
+            if ('name' in code[qq]) and code[qq]['name']==u'满意度':
+                    tmp=u'满意度平均值'
+            elif ('name' in code[qq]) and code[qq]['name']=='NPS':
+                    tmp=u'NPS值'
+            summary+=' || {}为：{:.3f}'.format(tmp,result_t['fw'])
+        elif qtype =='排序题':
+            summary+=' 此处“综合”指标的计算方法为 :={}/总频数.'.format(result_t['weight'])
+        if len(summary)==0:
+            summary+=u'这里是结论区域'
 
-        # 数据再加工
+        # ===============数据再加工==========================
         if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
         else:
             plt_data=t.copy()
-        '''
-        if (qtype in ['矩阵单选题']) and ('fw' in result_t):
-            plt_data=result_t['fw']
-        '''
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
-        title=qq+'['+qtype+']: '+qtitle
-        
-        # 各种题型的结论和相关注释。
-        if (qtype in [u'单选题']) and 'fw' in result_t:
-            summary=u'这里是结论区域, 加权平均值为：%.3f'%result_t['fw']
-            if ('name' in code[qq]) and code[qq]['name']:
-                if code[qq]['name']=='满意度':
-                    summary=u'这里是结论区域, 满意度平均值为：%.3f'%result_t['fw']
-                elif code[qq]['name']=='NPS':
-                    summary=u'这里是结论区域, NPS值为：%.3f'%result_t['fw']
-        elif qtype =='排序题':
-            summary=u'这里是结论区域, “综合”指标的计算方法为 :={}/总频数.'.format(result_t['weight'])
-        else:
-            summary=u'这里是结论区域.'
+        title=qq+'['+qtype+']: '+qtitle       
+
+            
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
         format1={'value_axis.tick_labels.number_format':'\'0"%"\'',\
         'value_axis.tick_labels.font.size':Pt(10),\
         }
-        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是dataFrame
+        # 绘制图表plt_data一般是Series，对于矩阵单选题，其是DataFrame
         if len(t)>max_column_chart:
             plot_chart(prs,plt_data[::-1],'BAR_CLUSTERED',title=title,summary=summary,\
             footnote=footnote,chart_format=format1,layouts=layouts)
@@ -2422,7 +2494,9 @@ max_column_chart=20,template=None):
         else:
             plot_chart(prs,plt_data,'PIE',title=title,summary=summary,\
             footnote=footnote,layouts=layouts)
-
+            
+            
+        #==============特殊题型处理===============
         # 矩阵单选题特殊处理
         if (qtype == u'矩阵单选题') and ('fw' in result_t):
             plt_data=result_t['fw']
@@ -2431,7 +2505,7 @@ max_column_chart=20,template=None):
             Writer_rows=len(plt_data)+2
             plt_data.fillna(0,inplace=True)
             title='[平均值]'+title
-            summary=summary+' 该平均分采用的权值是:\n'+result_t['weight']
+            summary=summary+' || 该平均分采用的权值是:\n'+result_t['weight']
             if len(plt_data)>max_column_chart:
                 plot_chart(prs,plt_data[::-1],'BAR_STACKED',title=title,summary=summary,\
                 footnote=footnote,layouts=layouts)
