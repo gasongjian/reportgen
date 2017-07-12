@@ -909,6 +909,49 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     
     return (d2,code)
 
+
+def spec_rcode(data,code):
+    for qq in code:
+        qlist=code[qq]['qlist']
+        #qtype=code[qq]['qtype']
+        content=code[qq]['content']
+        ind=list(data.columns).index(qlist[-1])
+        data1=data[qlist]
+        '''
+        识别问卷星中的城市题
+        '''
+        tf1=u'城市' in content
+        tf2=data1[data1.notnull()].applymap(lambda x:'-' in '%s'%x).all().all()
+        tf3=(qq+'a' not in data.columns) and (qq+'b' not in data.columns)
+        if tf1 and tf2 and tf3:
+            # 省份和城市
+            tmp1=data[qq].map(lambda x:x.split('-')[0])
+            tmp2=data[qq].map(lambda x:x.split('-')[1])
+            tmp2[tmp1==u'上海']=u'上海'
+            tmp2[tmp1==u'北京']=u'北京'
+            tmp2[tmp1==u'天津']=u'天津'
+            tmp2[tmp1==u'重庆']=u'重庆'
+            tmp2[tmp1==u'香港']=u'香港'
+            tmp2[tmp1==u'澳门']=u'澳门'
+            data.insert(ind+1,qq+'a',tmp1)
+            data.insert(ind+2,qq+'b',tmp2)
+            code[qq+'a']={'content':'省份','qtype':'填空题','qlist':[qq+'a']}
+            code[qq+'b']={'content':'城市','qtype':'填空题','qlist':[qq+'b']}
+            '''
+            city=pd.read_excel(u'F:\mypython3\datasets\city_grades.xlsx')
+            city.set_index('name',inplace=True)
+            tmp3=data['Q39b'].map(lambda x: city.loc[x,'grade'] if x in city.index else x)
+            tmp3=tmp3.map(lambda x: 6 if isinstance(x,str) else x)
+            data.insert(ind+3,qq+'c',tmp3)
+            code[qq+'c']={'content':'城市分级','qtype':'单选题','qlist':[qq+'c'],\
+            'code':{0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
+            '''           
+    return data,code
+
+
+
+
+
 ## ===========================================================
 #
 #
@@ -1344,6 +1387,8 @@ def table(data,code,total=True):
         result['fop'].drop([u'合计'],axis=0,inplace=True)
     if not(result['fo'] is None) and ('code_order' in code):
         code_order=[q for q in code['code_order'] if q in result['fo'].index]
+        if u'合计' in result['fo'].index:
+            code_order=code_order+[u'合计']
         result['fo']=pd.DataFrame(result['fo'],index=code_order)
         result['fop']=pd.DataFrame(result['fop'],index=code_order)
     return result
@@ -1576,13 +1621,17 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
         result['fop'].drop(['总体'],axis=1,inplace=True)
     # 顺序重排
     if not(result['fo'] is None) and code_index and ('code_order' in code_index) and qtype1!='矩阵单选题':
-        code_order=code_index['code_order']
+        code_order=code_index['code_order']       
         code_order=[q for q in code_order if q in result['fo'].index]
+        if u'总体' in result['fo'].index:
+            code_order=code_order+[u'总体']
         result['fo']=pd.DataFrame(result['fo'],index=code_order)
         result['fop']=pd.DataFrame(result['fop'],index=code_order)
     if not(result['fo'] is None) and code_column and ('code_order' in code_column) and qtype2!='矩阵单选题':
         code_order=code_column['code_order']
         code_order=[q for q in code_order if q in result['fo'].columns]
+        if u'总体' in result['fo'].columns:
+            code_order=code_order+[u'总体']
         result['fo']=pd.DataFrame(result['fo'],columns=code_order)
         result['fop']=pd.DataFrame(result['fop'],columns=code_order)
     return result
@@ -1697,7 +1746,7 @@ def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None
     
     
 
-def qtable(data,*args):
+def qtable(data,*args,**kwargs):
     '''简易频数统计函数
     输入
     data：数据框，可以是所有的数据
@@ -1725,10 +1774,14 @@ def qtable(data,*args):
     if not q1:
         print('please input the q1,such as Q1.')
         return
+    total=False
+    for key in kwargs:
+        if key == 'total':
+            total=kwargs['total']
     if q2 is None:
-        result=table(data[code[q1]['qlist']],code[q1],total=False)
+        result=table(data[code[q1]['qlist']],code[q1],total=total)
     else:
-        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=False)
+        result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=total)
     return result
 
 def association_rules(df,minSup=0.08,minConf=0.4):
@@ -1782,7 +1835,10 @@ def contingency(fo,alpha=0.05):
     cdata={}
     if isinstance(fo,pd.core.series.Series):
         fo=pd.DataFrame(fo)
+    if not isinstance(fo,pd.core.frame.DataFrame):
+        return cdata
     R,C=fo.shape
+    # 去除所有的总体、合计、其他、其它
     if u'总体' in fo.columns:
         fo.drop([u'总体'],axis=1,inplace=True)
     if any([(u'其他' in s) or (u'其它' in s) for s in fo.columns]):
@@ -1818,8 +1874,13 @@ def contingency(fo,alpha=0.05):
     significant={}
     significant['threshold']=stats.chi2.ppf(q=1-alpha,df=C-1)
     #threshold=math.ceil(R*C*0.2)# 期望频数和实际频数不得小于5
-    # 去除行变量中行为0的列
-    fo=fo[fo.sum(axis=1)>10]
+
+    # 去除行、列变量中样本数和过低的变量
+    threshold=max(3,min(30,N*0.05))
+    ind1=fo.sum(axis=1)>=threshold
+    ind2=fo.sum()>=threshold
+    fo=fo.loc[ind1,ind2]
+    
     if (fo.shape[0]<=1) or (np.any(fo.sum()==0)) or (np.any(fo.sum(axis=1)==0)):
         significant['result']=-2
         significant['pvalue']=-2           
@@ -1863,26 +1924,26 @@ def contingency(fo,alpha=0.05):
     fo_rank=fo.sum().rank(ascending=False)# 给列选项排名，只分析排名在前4选项的差异
     for c in fo_rank[fo_rank<5].index:#CHI.columns:        
         #针对每一列，选出大于一倍方差的行选项，如果过多，则只保留前三个
-        tmp=list(CHI.loc[CHI[c]>summary['chi_mean']+summary['chi_std'],c].sort_values(ascending=False)[:3].index)
+        tmp=list(CHI.loc[CHI[c]-summary['chi_mean']>summary['chi_std'],c].sort_values(ascending=False)[:3].index)
         tmp=['%s'%s for s in tmp]# 把全部内容转化成字符串
         if tmp:
             tmp1=u'{col}：{s}'.format(col=c,s=' || '.join(tmp))
             conclusion=conclusion+tmp1+'; \n'
     if significant['result']==1:
         if conclusion:
-            tmp='两个变量在95%置信水平下*显著*, 且CHI指标在一个标准差外的(即相对有差异的)有：\n'
+            tmp='在95%置信水平下显著性检验(卡方检验)结果为*显著*, 且CHI指标在一个标准差外的(即相对有差异的)有：\n'
         else:
-            tmp='两个变量在95%置信水平下*显著*，但没有找到相对有差异的配对'
+            tmp='在95%置信水平下显著性检验(卡方检验)结果为*显著*，但没有找到相对有差异的配对'
     elif significant['result']==0:
         if conclusion:
-            tmp='两个变量在95%置信水平下*不显著*, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
+            tmp='在95%置信水平下显著性检验(卡方检验)结果为*不显著*, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
         else:
-            tmp='两个变量在95%置信水平下*不显著*，且没有找到相对有差异的配对'
+            tmp='在95%置信水平下显著性检验(卡方检验)结果为*不显著*，且没有找到相对有差异的配对'
     else:
         if conclusion:
-            tmp='不满足显著性检验条件, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
+            tmp='不满足显著性检验(卡方检验)条件, 但CHI指标在一个标准差外的(即相对有差异的)有：\n'
         else:
-            tmp='不满足显著性检验条件，且没有找到相对有差异的配对'
+            tmp='不满足显著性检验(卡方检验)条件，且没有找到相对有差异的配对'
     conclusion=tmp+conclusion
 
     summary['summary']=conclusion
@@ -2574,10 +2635,115 @@ def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None)
         print('已生成 '+filename)
     return None
     
+def scorpion(data,code,filename='scorpion'):
+    '''天蝎X计划
+    返回一个excel文件
+    1、索引
+    2、各个题目的频数表
+    3、所有可能的交叉分析    
+    '''  
+
+    if not os.path.exists('.\\out'):
+        os.mkdir('.\\out')
+    Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
+    try:
+        qqlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
+    except:
+        qqlist=list(code.keys())
+    qIndex=pd.DataFrame(index=qqlist,columns=[u'content',u'qtype',u'SampleSize'])
+    qIndex.to_excel(Writer,u'索引')
+    
+    # 生成索引表和频数表
+    Writer_rows=0
+    for qq in qqlist:
+        qtitle=code[qq]['content']
+        qlist=code[qq]['qlist']
+        qtype=code[qq]['qtype']
+        if not(set(qlist) <= set(data.columns)):
+            continue
+        sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
+        qIndex.loc[qq,u'content']=qtitle
+        qIndex.loc[qq,u'qtype']=qtype
+        qIndex.loc[qq,u'SampleSize']=sample_len_qq
+        if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
+            continue
+        try:
+            result_t=table(data[qlist],code=code[qq])
+        except:
+            print(u'脚本处理 {} 时出了一点小问题.....'.format(qq))
+            continue         
+        fop=result_t['fop']
+        fo=result_t['fo']
+        if (qtype == u'排序题') and ('TOPN' in result_t):
+            tmp=result_t['TOPN']
+            tmp[u'综合']=fo[u'综合']
+            fo=tmp.copy()
+            tmp=result_t['TOPN_fo']
+            tmp[u'综合']=fop[u'综合']
+            fop=tmp.copy()
+        # =======保存到Excel中========
+        fo_fop=pd.concat([fo,fop],axis=1)
+        fo_fop.to_excel(Writer,u'频数表',startrow=Writer_rows,startcol=1,index_label=qq,float_format='%.3f')
+        tmp=pd.DataFrame({'name':[qq]})
+        tmp.to_excel(Writer,u'频数表',index=False,header=False,startrow=Writer_rows)
+        Writer_rows+=len(fo_fop)+3   
+    qIndex.to_excel(Writer,'索引')
+    
+    crossAna=pd.DataFrame(columns=['RowVar','ColVar','SampleSize','pvalue','significant','summary'])
+    N=0
+    qqlist=[qq for qq in qqlist if code[qq]['qtype'] in ['单选题','多选题','矩阵单选题','排序题']]
+    start_time=time.clock()
+    N_cal=len(qqlist)*(len(qqlist)-1)*0.1# 用于计算脚本剩余时间
+    for qq1 in qqlist:
+        for qq2 in qqlist:
+            #qtype1=code[qq1]['qtype']
+            if (N>=N_cal) and (N<N_cal+1.0):
+                tmp=(time.clock()-start_time)*9
+                print('请耐心等待, 预计还需要{:.1f}秒'.format(tmp))
+            qtype2=code[qq2]['qtype']
+            if (qq1==qq2) or (qtype2 not in [u'单选题',u'多选题']):
+                continue
+            data_index=data[code[qq1]['qlist']]
+            data_column=data[code[qq2]['qlist']]
+            samplesize=data_column.iloc[list(data_index.notnull().T.any()),:].notnull().T.any().sum()
+            try:
+                fo=qtable(data,code,qq1,qq2)['fo']
+            except :
+                crossAna.loc[N,:]=[qq1,qq2,samplesize,'','','']
+                N+=1
+                continue
+            try:
+                cdata=contingency(fo,alpha=0.05)
+            except :
+                crossAna.loc[N,:]=[qq1,qq2,samplesize,'','','']
+                N+=1
+                continue
+            if cdata:
+                result=cdata['significant']['result']
+                pvalue=cdata['significant']['pvalue']
+                summary=cdata['summary']['summary']
+            else:
+                result=-2
+                pvalue=-2
+                summary='没有找到结论'
+            summary='\n'.join(summary.splitlines()[1:])#去掉第一行
+            if len(summary)==0:
+                summary='没有找到结论'
+            crossAna.loc[N,:]=[qq1,qq2,samplesize,pvalue,result,summary]
+            N+=1
+    crossAna.to_excel(Writer,'交叉分析表',index=False)            
+    
+    Writer.save()
+
+
+
+
 
 
 if __name__ == '__main__':
-
+    '''
+    暂时用于保存一些信息
+    '''
     prs = Presentation()
     slide_width=prs.slide_width
     slide_height=prs.slide_height
