@@ -130,11 +130,11 @@ class apriori:
                     Y='('+','.join(H.loc[ii,1])+')'
                 rule='{}  --->>  {}'.format(X,Y)
                 H.loc[ii,'rule']=rule
-            H.rename(columns={2:'sup',3:'conf',4:'lift'},inplace=True)
-            H=pd.DataFrame(H,columns=['rule','sup','conf','lift'])
+            H.rename(columns={0:'X',1:'Y',2:'sup',3:'conf',4:'lift'},inplace=True)
+            H=pd.DataFrame(H,columns=['X','Y','rule','sup','conf','lift'])
             H['rank']=H['sup']*5+H['conf']
             H=H.sort_values(['sup','conf'],ascending=False)
-            H=pd.DataFrame(H,columns=['rule','sup','conf','lift'])
+            H=pd.DataFrame(H,columns=['X','Y','rule','sup','conf','lift'])
             H=H.reset_index(drop=True)
         else:
             H=None
