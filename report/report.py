@@ -1092,6 +1092,40 @@ def sa_to_ma(data):
     data_ma.loc[data.isnull(),:]=np.nan
     return data_ma
 
+def to_dummpy(data,code,qqlist=None):
+    '''转化成哑变量
+    将数据中的单选题全部转化成哑变量，多选题保留，其他题目全部删除
+    返回一个很大的只有0和1的数据
+    '''
+    if qqlist is None:
+        qqlist=sorted(code,key=lambda x:int(re.findall('\d+',x)[0]))
+    bdata=pd.DataFrame()
+    bcode={}
+    for qq in qqlist:
+        qtype=code[qq]['qtype']
+        data0=data[code[qq]['qlist']]
+        if qtype=='单选题':
+            data0=data0.iloc[:,0]
+            categorys=data0[data0.notnull()].unique()
+            try:
+                categorys=sorted(categorys)
+            except :
+                pass
+            categorys=[t for t in categorys if t in code[qq]['code']]
+            cname=[code[qq]['code'][k] for k in categorys]
+            columns_name=['{}_A{}'.format(qq,i+1) for i in range(len(categorys))]
+            tmp=pd.DataFrame(index=data0.index,columns=columns_name)
+            for i,c in enumerate(categorys):
+                tmp[columns_name[i]]=data0.map(lambda x : int(x==c))
+            tmp.loc[data0.isnull(),:]=np.nan
+            bcode.update({qq:dict(zip(columns_name,cname))})
+            bdata=pd.concat([bdata,tmp],axis=1)
+        elif qtype=='多选题':
+            tmp=data[code[qq]['qlist']]
+            bdata=pd.concat([bdata,data0],axis=1)
+            bcode.update(code[qq]['code'])
+    return bdata,bcode
+
 
 def confidence_interval(p,n,alpha=0.05):
     import scipy.stats as stats
@@ -2683,7 +2717,7 @@ def scorpion(data,code,filename='scorpion'):
             fop=tmp.copy()
         # =======保存到Excel中========
         fo_fop=pd.concat([fo,fop],axis=1)
-        fo_fop.to_excel(Writer,u'频数表',startrow=Writer_rows,startcol=1,index_label=qq,float_format='%.3f')
+        fo_fop.to_excel(Writer,u'频数表',startrow=Writer_rows,startcol=1,index_label=code[qq]['content'],float_format='%.3f')
         tmp=pd.DataFrame({'name':[qq]})
         tmp.to_excel(Writer,u'频数表',index=False,header=False,startrow=Writer_rows)
         Writer_rows+=len(fo_fop)+3   
