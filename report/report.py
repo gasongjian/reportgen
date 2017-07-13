@@ -1123,7 +1123,7 @@ def to_dummpy(data,code,qqlist=None):
         elif qtype=='多选题':
             tmp=data[code[qq]['qlist']]
             bdata=pd.concat([bdata,data0],axis=1)
-            bcode.update(code[qq]['code'])
+            bcode.update({qq:code[qq]['code']})
     return bdata,bcode
 
 
@@ -1818,7 +1818,7 @@ def qtable(data,*args,**kwargs):
         result=crosstab(data[code[q1]['qlist']],data[code[q2]['qlist']],code[q1],code[q2],total=total)
     return result
 
-def association_rules(df,minSup=0.08,minConf=0.4):
+def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
     '''关联规则分析
     df是一个观察频数表，返回其中存在的关联规则
     
@@ -1829,7 +1829,7 @@ def association_rules(df,minSup=0.08,minConf=0.4):
         print('没有找到关联分析需要的包: import relations')
         return (None,None)
     a=rlt.apriori(df, minSup, minConf)
-    rules,freq=a.genRules()
+    rules,freq=a.genRules(Y=Y)
     if rules is None:
         return (None,None)
     result=';\n'.join(['{}:  支持度={:.1f}%, 置信度={:.1f}%'.format(rules.loc[ii,'rule'],100*rules.loc[ii,'sup'],100*rules.loc[ii,'conf']) for ii in rules.index[:4]])

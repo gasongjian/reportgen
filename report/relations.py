@@ -3,26 +3,31 @@ import itertools
 import pandas as pd
 
 class apriori:
-    def __init__(self, data, minSup, minConf):
+    def __init__(self, data, minSup, minConf,maxItems=5):
         self.dataset = data
         self.transList = defaultdict(list)
         self.freqList = defaultdict(int)
         self.itemset = set()
         self.highSupportList = list()
         self.numItems = 0
-        self.prepData()             # initialize the above collections
+        self.prepData()        # initialize the above collections
+        self.maxItems=maxItems
 
         self.F = defaultdict(list)
 
         self.minSup = minSup
         self.minConf = minConf
 
-    def genAssociations(self):
+    def genAssociations(self,Y=None):
+        if Y is not None:
+            Y=set(Y)              
         candidate = {}
         self.F[1] = self.firstPass(self.freqList, 1)
         k=2
-        while len(self.F[k-1]) != 0:
+        while (len(self.F[k-1]) != 0) and (k<=self.maxItems):
             candidate[k] = self.candidateGen(self.F[k-1], k)
+            if Y is not None:
+                candidate[k]=[c for c in candidate[k] if len(Y&set(c))>0]            
             # 循环每个样本,统计每个配对item的频数
             for t in self.transList.items():
                 for c in candidate[k]:
@@ -84,11 +89,11 @@ class apriori:
             subsets.extend(itertools.combinations(item, i))
         return subsets
 
-    def genRules(self):
+    def genRules(self,Y=None):
         '''生成关联规则
         subset --> rhs (其中rhs的长度为 1)
         '''
-        F=self.genAssociations()
+        F=self.genAssociations(Y=Y)
         H = []
         N=self.numItems
         freqList=[]
@@ -96,6 +101,9 @@ class apriori:
             if k<2:
                 continue
             for item in itemset:
+                # 如果有Y，则频繁集一定得含有Y中的元素
+                if (Y is not None) and len(set(item)&set(Y))==0:
+                    continue
                 subsets = self.genSubsets(item)
                 itemCount = self.freqList[item]
                 support = itemCount/N
@@ -104,6 +112,9 @@ class apriori:
                     if len(subset)!=len(item)-1:
                         continue
                     rhs = self.difference(item, subset)
+                    # 如果有Y，则rhs必须在Y中
+                    if (Y is not None) and not(set(rhs)<Y):
+                        continue
                     subCount=self.freqList[subset[0]] if len(subset)==1 else self.freqList[subset]
                     rhsCount=self.freqList[rhs[0]] if len(rhs)==1 else self.freqList[rhs]
                     if subCount==0 or rhsCount==0:
