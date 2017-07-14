@@ -1875,13 +1875,13 @@ def contingency(fo,alpha=0.05):
     # 去除所有的总体、合计、其他、其它
     if u'总体' in fo.columns:
         fo.drop([u'总体'],axis=1,inplace=True)
-    if any([(u'其他' in s) or (u'其它' in s) for s in fo.columns]):
+    if any([(u'其他' in '%s'%s) or (u'其它' in '%s'%s) for s in fo.columns]):
         tmp=[s for s in fo.columns if (u'其他' in s) or (u'其它' in s)]
         for t in tmp:
-            fo.drop([t],axis=1,inplace=True)      
+            fo.drop([t],axis=1,inplace=True)
     if u'合计' in fo.index:
         fo.drop([u'合计'],axis=0,inplace=True)
-    if any([(u'其他' in s) or (u'其它' in s) for s in fo.index]):
+    if any([(u'其他' in '%s'%s) or (u'其它' in '%s'%s) for s in fo.index]):
         tmp=[s for s in fo.index if (u'其他' in s) or (u'其它' in s)]
         for t in tmp:
             fo.drop([t],axis=0,inplace=True)
@@ -2733,7 +2733,8 @@ def scorpion(data,code,filename='scorpion'):
             #qtype1=code[qq1]['qtype']
             if (N>=N_cal) and (N<N_cal+1.0):
                 tmp=(time.clock()-start_time)*9
-                print('请耐心等待, 预计还需要{:.1f}秒'.format(tmp))
+                if tmp>60:
+                    print('请耐心等待, 预计还需要{:.1f}秒'.format(tmp))
             qtype2=code[qq2]['qtype']
             if (qq1==qq2) or (qtype2 not in [u'单选题',u'多选题']):
                 continue
