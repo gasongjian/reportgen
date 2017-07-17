@@ -1833,7 +1833,7 @@ def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
     if rules is None:
         return (None,None)
     result=';\n'.join(['{}:  支持度={:.1f}%, 置信度={:.1f}%'.format(rules.loc[ii,'rule'],100*rules.loc[ii,'sup'],100*rules.loc[ii,'conf']) for ii in rules.index[:4]])
-    return (result,rules)
+    return (result,rules,freq)
 
 
 

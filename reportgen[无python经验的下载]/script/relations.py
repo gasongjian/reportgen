@@ -25,9 +25,10 @@ class apriori:
         self.F[1] = self.firstPass(self.freqList, 1)
         k=2
         while (len(self.F[k-1]) != 0) and (k<=self.maxItems):
+            print('k={},个数为{}'.format(k-1,len(self.F[k-1])))
             candidate[k] = self.candidateGen(self.F[k-1], k)
-            if Y is not None:
-                candidate[k]=[c for c in candidate[k] if len(Y&set(c))>0]            
+            #if (Y is not None) and (k>3):
+                #candidate[k]=[c for c in candidate[k] if len(Y&set(c))>0]       
             # 循环每个样本,统计每个配对item的频数
             for t in self.transList.items():
                 for c in candidate[k]:
@@ -93,7 +94,10 @@ class apriori:
         '''生成关联规则
         subset --> rhs (其中rhs的长度为 1)
         '''
-        F=self.genAssociations(Y=Y)
+        if len(self.F)==0:
+            F=self.genAssociations(Y=Y)
+        else:
+            F=self.F
         H = []
         N=self.numItems
         freqList=[]
