@@ -25,7 +25,7 @@ class apriori:
         self.F[1] = self.firstPass(self.freqList, 1)
         k=2
         while (len(self.F[k-1]) != 0) and (k<=self.maxItems):
-            print('k={},个数为{}'.format(k-1,len(self.F[k-1])))
+            #print('找到 {} 元频繁集：{} 个'.format(k-1,len(self.F[k-1])))
             candidate[k] = self.candidateGen(self.F[k-1], k)
             #if (Y is not None) and (k>3):
                 #candidate[k]=[c for c in candidate[k] if len(Y&set(c))>0]       
@@ -42,6 +42,7 @@ class apriori:
                 self.removeSkyline(k, k-1)
             '''
             k += 1
+        #print('[频繁集搜索终止]找到 {} 元频繁集：{} 个'.format(k,len(self.F[k])))
 
         return self.F
 
@@ -93,6 +94,10 @@ class apriori:
     def genRules(self,Y=None):
         '''生成关联规则
         subset --> rhs (其中rhs的长度为 1)
+        返回：
+        H：所有满足条件的关联规则
+        freqList：频繁集
+        
         '''
         if len(self.F)==0:
             F=self.genAssociations(Y=Y)
@@ -105,13 +110,13 @@ class apriori:
             if k<2:
                 continue
             for item in itemset:
+                itemCount = self.freqList[item]
+                support = itemCount/N
+                freqList.append((item,support))
                 # 如果有Y，则频繁集一定得含有Y中的元素
                 if (Y is not None) and len(set(item)&set(Y))==0:
                     continue
                 subsets = self.genSubsets(item)
-                itemCount = self.freqList[item]
-                support = itemCount/N
-                freqList.append((item,support))
                 for subset in subsets:
                     if len(subset)!=len(item)-1:
                         continue
