@@ -911,7 +911,26 @@ def wenjuanxing(filepath='.\\data',headlen=6):
 
 
 def spec_rcode(data,code):
-    for qq in code:
+    city={'北京':0,'上海':0,'广州':0,'深圳':0,'成都':1,'杭州':1,'武汉':1,'天津':1,'南京':1,'重庆':1,'西安':1,'长沙':1,'青岛':1,'沈阳':1,'大连':1,'厦门':1,'苏州':1,'宁波':1,'无锡':1,\
+    '福州':2,'合肥':2,'郑州':2,'哈尔滨':2,'佛山':2,'济南':2,'东莞':2,'昆明':2,'太原':2,'南昌':2,'南宁':2,'温州':2,'石家庄':2,'长春':2,'泉州':2,'贵阳':2,'常州':2,'珠海':2,'金华':2,\
+    '烟台':2,'海口':2,'惠州':2,'乌鲁木齐':2,'徐州':2,'嘉兴':2,'潍坊':2,'洛阳':2,'南通':2,'扬州':2,'汕头':2,'兰州':3,'桂林':3,'三亚':3,'呼和浩特':3,'绍兴':3,'泰州':3,'银川':3,'中山':3,\
+    '保定':3,'西宁':3,'芜湖':3,'赣州':3,'绵阳':3,'漳州':3,'莆田':3,'威海':3,'邯郸':3,'临沂':3,'唐山':3,'台州':3,'宜昌':3,'湖州':3,'包头':3,'济宁':3,'盐城':3,'鞍山':3,'廊坊':3,'衡阳':3,\
+    '秦皇岛':3,'吉林':3,'大庆':3,'淮安':3,'丽江':3,'揭阳':3,'荆州':3,'连云港':3,'张家口':3,'遵义':3,'上饶':3,'龙岩':3,'衢州':3,'赤峰':3,'湛江':3,'运城':3,'鄂尔多斯':3,'岳阳':3,'安阳':3,\
+    '株洲':3,'镇江':3,'淄博':3,'郴州':3,'南平':3,'齐齐哈尔':3,'常德':3,'柳州':3,'咸阳':3,'南充':3,'泸州':3,'蚌埠':3,'邢台':3,'舟山':3,'宝鸡':3,'德阳':3,'抚顺':3,'宜宾':3,'宜春':3,'怀化':3,\
+    '榆林':3,'梅州':3,'呼伦贝尔':3,'临汾':4,'南阳':4,'新乡':4,'肇庆':4,'丹东':4,'德州':4,'菏泽':4,'九江':4,'江门市':4,'黄山':4,'渭南':4,'营口':4,'娄底':4,'永州市':4,'邵阳':4,'清远':4,\
+    '大同':4,'枣庄':4,'北海':4,'丽水':4,'孝感':4,'沧州':4,'马鞍山':4,'聊城':4,'三明':4,'开封':4,'锦州':4,'汉中':4,'商丘':4,'泰安':4,'通辽':4,'牡丹江':4,'曲靖':4,'东营':4,'韶关':4,'拉萨':4,\
+    '襄阳':4,'湘潭':4,'盘锦':4,'驻马店':4,'酒泉':4,'安庆':4,'宁德':4,'四平':4,'晋中':4,'滁州':4,'衡水':4,'佳木斯':4,'茂名':4,'十堰':4,'宿迁':4,'潮州':4,'承德':4,'葫芦岛':4,'黄冈':4,'本溪':4,\
+    '绥化':4,'萍乡':4,'许昌':4,'日照':4,'铁岭':4,'大理州':4,'淮南':4,'延边州':4,'咸宁':4,'信阳':4,'吕梁':4,'辽阳':4,'朝阳':4,'恩施州':4,'达州市':4,'益阳市':4,'平顶山':4,'六安':4,'延安':4,\
+    '梧州':4,'白山':4,'阜阳':4,'铜陵市':4,'河源':4,'玉溪市':4,'黄石':4,'通化':4,'百色':4,'乐山市':4,'抚州市':4,'钦州':4,'阳江':4,'池州市':4,'广元':4,'滨州':5,'阳泉':5,'周口市':5,'遂宁':5,\
+    '吉安':5,'长治':5,'铜仁':5,'鹤岗':5,'攀枝花':5,'昭通':5,'云浮':5,'伊犁州':5,'焦作':5,'凉山州':5,'黔西南州':5,'广安':5,'新余':5,'锡林郭勒':5,'宣城':5,'兴安盟':5,'红河州':5,'眉山':5,\
+    '巴彦淖尔':5,'双鸭山市':5,'景德镇市':5,'鸡西':5,'三门峡':5,'宿州':5,'汕尾':5,'阜新':5,'张掖':5,'玉林':5,'乌兰察布':5,'鹰潭':5,'黑河':5,'伊春':5,'贵港市':5,'漯河':5,'晋城':5,'克拉玛依':5,\
+    '随州':5,'保山':5,'濮阳':5,'文山州':5,'嘉峪关':5,'六盘水':5,'乌海':5,'自贡':5,'松原':5,'内江':5,'黔东南州':5,'鹤壁':5,'德宏州':5,'安顺':5,'资阳':5,'鄂州':5,'忻州':5,'荆门':5,'淮北':5,\
+    '毕节':5,'巴音郭楞':5,'防城港':5,'天水':5,'黔南州':5,'阿坝州':5,'石嘴山':5,'安康':5,'亳州市':5,'昌吉州':5,'普洱':5,'楚雄州':5,'白城':5,'贺州':5,'哈密':5,'来宾':5,'庆阳':5,'河池':5,\
+    '张家界 雅安':5,'辽源':5,'湘西州':5,'朔州':5,'临沧':5,'白银':5,'塔城地区':5,'莱芜':5,'迪庆州':5,'喀什地区':5,'甘孜州':5,'阿克苏':5,'武威':5,'巴中':5,'平凉':5,'商洛':5,'七台河':5,'金昌':5,\
+    '中卫':5,'阿勒泰':5,'铜川':5,'海西州':5,'吴忠':5,'固原':5,'吐鲁番':5,'阿拉善盟':5,'博尔塔拉州':5,'定西':5,'西双版纳':5,'陇南':5,'大兴安岭':5,'崇左':5,'日喀则':5,'临夏州':5,'林芝':5,\
+    '海东':5,'怒江州':5,'和田地区':5,'昌都':5,'儋州':5,'甘南州':5,'山南':5,'海南州':5,'海北州':5,'玉树州':5,'阿里地区':5,'那曲地区':5,'黄南州':5,'克孜勒苏州':5,'果洛州':5,'三沙':5}
+    code_keys=list(code.keys())
+    for qq in code_keys:
         qlist=code[qq]['qlist']
         #qtype=code[qq]['qtype']
         content=code[qq]['content']
@@ -937,15 +956,13 @@ def spec_rcode(data,code):
             data.insert(ind+2,qq+'b',tmp2)
             code[qq+'a']={'content':'省份','qtype':'填空题','qlist':[qq+'a']}
             code[qq+'b']={'content':'城市','qtype':'填空题','qlist':[qq+'b']}
-            '''
-            city=pd.read_excel(u'F:\mypython3\datasets\city_grades.xlsx')
-            city.set_index('name',inplace=True)
-            tmp3=data['Q39b'].map(lambda x: city.loc[x,'grade'] if x in city.index else x)
+            tmp3=data[qq+'b'].map(lambda x: city[x] if x in city.keys() else x)
             tmp3=tmp3.map(lambda x: 6 if isinstance(x,str) else x)
+            print(len(tmp3))
             data.insert(ind+3,qq+'c',tmp3)
             code[qq+'c']={'content':'城市分级','qtype':'单选题','qlist':[qq+'c'],\
             'code':{0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
-            '''           
+        
     return data,code
 
 
@@ -1341,8 +1358,9 @@ def table(data,code,total=True):
         fop=fop/fop.sum()*1.0
         fop[u'合计']=fop.sum()
         fo[u'合计']=fo.sum()
-        fop.rename(index=code['code'],inplace=True)
-        fo.rename(index=code['code'],inplace=True)
+        if 'code' in code:
+            fop.rename(index=code['code'],inplace=True)
+            fo.rename(index=code['code'],inplace=True)
         fop.name=u'占比'
         fo.name=u'频数'
         fop=pd.DataFrame(fop)
@@ -1353,7 +1371,8 @@ def table(data,code,total=True):
         fo=data.sum()
         fo.sort_values(ascending=False,inplace=True)
         fo[u'合计']=fo.sum()
-        fo.rename(index=code['code'],inplace=True)
+        if 'code' in code:
+            fo.rename(index=code['code'],inplace=True)
         fop=fo.copy()
         fop=fop/sample_len
         fop.name=u'占比'
@@ -1409,7 +1428,8 @@ def table(data,code,total=True):
         for i in range(topn):
             t_topn['TOP%d'%(i+1)]=data.applymap(lambda x:int(x==i+1)).sum()
         t_topn.sort_values(by=u'TOP1',ascending=False,inplace=True)
-        t_topn.rename(index=code['code'],inplace=True)
+        if 'code' in code:
+            t_topn.rename(index=code['code'],inplace=True)
         result['TOPN_fo']=t_topn#频数
         result['TOPN']=t_topn/sample_len
         result['weight']='+'.join(['TOP{}*{:.2f}'.format(i+1,(topn-i)*2.0/(topn+1)/topn) for i in range(topn)])
@@ -1426,70 +1446,6 @@ def table(data,code,total=True):
         result['fo']=pd.DataFrame(result['fo'],index=code_order)
         result['fop']=pd.DataFrame(result['fop'],index=code_order)
     return result
-
-def ntable(data,code):
-    '''【后期将删除】
-    单个题目描述统计
-    code是data的编码，列数大于1
-    返回两个数据：
-    t1：默认的百分比表
-    t2：原始频数表，且添加了合计项
-    '''
-    # 单选题
-    qtype=code['qtype']
-    index=code['qlist']
-    data=pd.DataFrame(data)
-    sample_len=data[code['qlist']].notnull().T.any().sum()
-    if qtype == u'单选题':
-        t1=data.iloc[:,0].value_counts()
-        t1.sort_values(ascending=False,inplace=True)
-        t=t1.copy()
-        t=t/t.sum()*1.0
-        t[u'合计']=t.sum()
-        t1[u'合计']=t1.sum()
-        t.rename(index=code['code'],inplace=True)
-        t1.rename(index=code['code'],inplace=True)
-        t.name=u'占比'
-        t1.name=u'频数'        
-        t=pd.DataFrame(t)
-        t1=pd.DataFrame(t1)
-    elif qtype == u'多选题':
-        t1=data.sum()
-        t1.sort_values(ascending=False,inplace=True)
-        t1[u'合计']=t1.sum()
-        t1.rename(index=code['code'],inplace=True)
-        t=t1.copy()
-        t=t/sample_len
-        t.name=u'占比'
-        t1.name=u'频数'   
-        t=pd.DataFrame(t)
-        t1=pd.DataFrame(t1)
-    elif qtype == u'矩阵单选题':
-        sample_len
-        t1=pd.DataFrame(columns=code['qlist'],index=sorted(code['code']))
-        for i in t1.columns:
-            t1.loc[:,i]=data[i].value_counts()
-        t1.rename(columns=code['code_r'],index=code['code'],inplace=True)
-        t=t1.copy()
-        t=t/sample_len
-    elif qtype == u'排序题':
-        #提供综合统计和TOP1值统计
-        # 其中综合的算法是当成单选题，给每个TOP分配和为1的权重
-        topn=max([len(data[q][data[q].notnull()].unique()) for q in index])
-        qsort=dict(zip([i+1 for i in range(topn)],[(topn-i)*2.0/(topn+1)/topn for i in range(topn)]))
-        top1=data.applymap(lambda x:int(x==1))
-        data.replace(qsort,inplace=True)
-        t1=pd.DataFrame()
-        t1['TOP1']=top1.sum()
-        t1[u'综合']=data.sum()
-        t1.sort_values(by=u'综合',ascending=False,inplace=True)
-        t1.rename(index=code['code'],inplace=True)
-        t=t1.copy()
-        t=t/sample_len
-    else:
-        t=None
-        t1=None
-    return (t,t1)
 
 def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,total=True):
     '''适用于问卷数据的交叉统计
@@ -1827,11 +1783,11 @@ def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
         import relations as rlt
     except :
         print('没有找到关联分析需要的包: import relations')
-        return (None,None)
+        return (None,None,None)
     a=rlt.apriori(df, minSup, minConf)
     rules,freq=a.genRules(Y=Y)
     if rules is None:
-        return (None,None)
+        return (None,None,None)
     result=';\n'.join(['{}:  支持度={:.1f}%, 置信度={:.1f}%'.format(rules.loc[ii,'rule'],100*rules.loc[ii,'sup'],100*rules.loc[ii,'conf']) for ii in rules.index[:4]])
     return (result,rules,freq)
 
@@ -2540,7 +2496,7 @@ max_column_chart=20,template=None):
 
         if qtype == '多选题':
             tmp=data[qlist].rename(columns=code[qq]['code'])
-            aso_result,rules=association_rules(tmp)
+            aso_result,rules,freq=association_rules(tmp)
             numItem_mean=t1.sum().sum()/sample_len_qq
             if u'合计' in t1.index:
                 numItem_mean=numItem_mean/2            
