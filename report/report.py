@@ -1287,7 +1287,7 @@ def scatter(data,legend=False,title=None):
         ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
                    label=dd.columns[1])
         for _, row in dd.iterrows():
-            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
+            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
     ax.axis('equal')
     if legend:
         ax.legend(loc='best')
@@ -2121,7 +2121,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     # 交叉变量中每个类别的频数分布.
     if code[cross_class]['qtype'] == u'单选题':
         #data[cross_class].replace(code[cross_class]['code'],inplace=True)
-        cross_class_freq=data[cross_class].value_counts()
+        cross_class_freq=data[code[cross_class]['qlist'][0]].value_counts()
         cross_class_freq[u'合计']=cross_class_freq.sum()
         cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=code[cross_class]['qlist']
