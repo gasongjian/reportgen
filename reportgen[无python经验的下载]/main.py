@@ -29,9 +29,9 @@ while 1:
     try:
         command = input('''
 ==========一、数据导入=======
-1.从问卷星导入数据并编码.
-2.从问卷网导入数据并编码.
-3.直接导入已编码好的数据.
+1.导入问卷星数据并编码.
+2.导入问卷网数据并编码.
+3.导入已编码好的数据.
 请输入相应的序号:
 ''')
             
@@ -79,6 +79,7 @@ while 1:
                     continue          
             try:
                 data,code=rpt.wenjuanxing([filename1,filename2])
+                data,code=rpt.spec_rcode(data,code)
             except Exception as e:
                 print(e)
                 print('问卷星数据导入失败, 请检查.')
@@ -91,7 +92,7 @@ while 1:
             rpt.save_code(code,'code.xlsx')
             rpt.save_data(data,'data.xlsx')
             rpt.save_data(data,'data_readable.xlsx',code)
-            print('编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
+            print('\n编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
             break
         if command=='2':
             print('准备导入问卷网数据，请确保“.\data\”文件夹下有按序号、按文本和code数据.')
@@ -144,28 +145,53 @@ while 1:
 
 os.system('pause')
 
+
+s='''
+==========二、数据预处理=======
+1. 编码后的数据中，data.xlsx用于存放所有按序号数据，code.xlsx用于存放序号对应的文本内容以及报告生成所需变量
+
+2. code中key[必须]：题号，content[必须]:题目内容，qtype[必须]:题目类型，qlist[必须]：题目在data.xlsx对应的位置，code_order:用于固定报告中选项的顺序,weight:用于求加权平均值，如NPS、满意度、模块满意度等.
+
+3. 本脚本不提供数据处理操作，因为没有界面体验很不好.大家可以在本地处理好数据后，重新导入编码后并修改好的数据。在这个过程中，如果涉及到选项序号的合并、修改等，请同步修改data和code两个文件，谢谢.
+
+4. 如果需要修改数据，可以输入exit或者quit暂时退出本脚本，等数据修改完后再启动.
+--------------------------------
+'''
+print(s)
+command=input('请输入(按任意键跳转到第三步：报告生成)：')
+
+if command in ['0','exit','quit']:
+    print('本工具包由JSong开发, 谢谢使用, 再见..')
+    exit()
+
+
 #=======================================================================
 while 1:
     print('=' * 70)
     try:
         command = input('''
-==========二、报告生成=======.
+==========三、报告生成=======.
 x. 全自动一键生成
 1. 整体统计报告自动生成
 2. 交叉分析报告自动生成
-3. 单题描述统计
-4. 单题交叉分析
-5. 单题对应分析
+3. 描述统计
+4. 交叉分析
+5. 对应分析
 0. 退出程序(也可以输入exit或者quit)
 请输入相应的序号:
 ''')
         if command in ['x','X']:
-            filename=input('请输入需要保存的文件名,缺省为 reprotgen报告自动生成: ')
+            filename=input('请输入需要保存的文件名,缺省为 reportgen报告自动生成: ')
             if not filename:
-                filename=u'reprotgen报告自动生成'
+                filename=u'reportgen报告自动生成'
             print('请耐心等待，脚本正在马不停蹄地工作中......')
             rpt.onekey_gen(data,code,filename=filename,template=mytemplate);
             print('\n 所有报告已生成, 请检查文件夹：'+os.path.join(os.getcwd(),'out'))
+            print('\n 开始生成*scorpion.xlsx*,请耐心等待')
+            try:
+                rpt.scorpion(data,code)
+            except :
+                print('脚本出现一些错误...')
             continue
         if command in ['0','exit','quit']:
             print('本工具包由JSong开发, 谢谢使用, 再见..')
@@ -272,7 +298,7 @@ x. 全自动一键生成
                 title=u'对应分析图(信息量为{:.1f}%)'.format(inertia[1]*100)
                 fig=rpt.scatter([x,y],title=title)
                 filename='ca_'+qq1+'_'+qq2
-                fig.savefig(filename+'.png',dpi=500)
+                fig.savefig(filename+'.png',dpi=1200)
                 w=pd.ExcelWriter(filename+'.xlsx')
                 x.to_excel(w,startrow=0,index_label=True)
                 y.to_excel(w,startrow=len(x)+2,index_label=True)
@@ -290,11 +316,8 @@ x. 全自动一键生成
                 print(e)
                 print('脚本运行错误，请重新检查数据和编码.')
                 continue
+        os.system('pause')
     except Exception as e:
         print(e)
         print('错误..')
         
-        
-        
-
-       
