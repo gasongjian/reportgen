@@ -593,6 +593,43 @@ Qn.name: 特殊类型，包含：城市题、NPS题等
 Qn.weight:dict,每个选项的权重
 '''
 
+
+def dataText_to_code(df,sep,qqlist=None):
+    '''编码文本数据
+    
+    '''
+
+    if sep in [';','┋']:
+        qtype='多选题'
+    elif sep in ['-->','→']:
+        qtype='排序题'
+    if not qqlist:
+        qqlist=df.columns
+    # 处理多选题
+    code={}
+    for qq in qqlist:
+        tmp=df[qq].map(lambda x : x.split(sep)  if isinstance(x,str) else [])
+        item_list=sorted(set(tmp.sum()))
+        if qtype == '多选题':
+            tmp=tmp.map(lambda x: [int(t in x) for t in item_list])
+            code_tmp={'code':{},'qtype':u'多选题','qlist':[],'content':qq}
+        elif qtype == '排序题':
+            tmp=tmp.map(lambda x:[x.index(t)+1 if t in x else np.nan for t in item_list])
+            code_tmp={'code':{},'qtype':u'排序题','qlist':[],'content':qq}
+        for i,t in enumerate(item_list):
+            column_name='{}_A{:.0f}'.format(qq,i+1)
+            df[column_name]=tmp.map(lambda x:x[i])
+            code_tmp['code'][column_name]=item_list[i]
+            code_tmp['qlist']=code_tmp['qlist']+[column_name]
+        code[qq]=code_tmp
+        df.drop(qq,aixs=1,inplace=True)
+    return df,code
+
+
+
+
+
+
 def wenjuanwang(filepath='.\\data',encoding='gbk'):
     '''问卷网数据导入和编码
     输入：
@@ -958,7 +995,6 @@ def spec_rcode(data,code):
             code[qq+'b']={'content':'城市','qtype':'填空题','qlist':[qq+'b']}
             tmp3=data[qq+'b'].map(lambda x: city[x] if x in city.keys() else x)
             tmp3=tmp3.map(lambda x: 6 if isinstance(x,str) else x)
-            print(len(tmp3))
             data.insert(ind+3,qq+'c',tmp3)
             code[qq+'c']={'content':'城市分级','qtype':'单选题','qlist':[qq+'c'],\
             'code':{0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
@@ -1783,7 +1819,7 @@ def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
         import relations as rlt
     except :
         print('没有找到关联分析需要的包: import relations')
-        return (None,None,None)
+        return (None,None,None)    
     a=rlt.apriori(df, minSup, minConf)
     rules,freq=a.genRules(Y=Y)
     if rules is None:
@@ -2496,7 +2532,17 @@ max_column_chart=20,template=None):
 
         if qtype == '多选题':
             tmp=data[qlist].rename(columns=code[qq]['code'])
-            aso_result,rules,freq=association_rules(tmp)
+            tmp_t=len(tmp)*tmp.shape[1]*np.log(tmp.shape[1])
+            if tmp_t<20000:
+                minSup=0.08
+                minConf=0.40
+            elif tmp_t<50000:
+                minSup=0.15
+                minConf=0.60
+            else:
+                minSup=0.20
+                minConf=0.60
+            aso_result,rules,freq=association_rules(tmp,minSup=minSup,minConf=minConf)
             numItem_mean=t1.sum().sum()/sample_len_qq
             if u'合计' in t1.index:
                 numItem_mean=numItem_mean/2            
