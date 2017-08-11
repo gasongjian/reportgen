@@ -23,15 +23,6 @@ mytemplate='template.pptx'
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
 
-
-'''
-import tkinter as tk
-from tkinter.filedialog import askopenfilename
-tk.Tk().withdraw();
-filename=askopenfilename(initialdir = ".\\data",title =u"请选择按选项文本数据",filetypes = (("xls files","*.xls"),("xlsx files","*.xlsx"),("all files","*.*")))
-'''
-
-
 #==================================================================
 while 1:
     #print('=' * 70)
@@ -41,6 +32,7 @@ while 1:
 1.导入问卷星数据并编码.
 2.导入问卷网数据并编码.
 3.导入已编码好的数据.
+4.打开文件选择窗口选择（问卷星数据）.
 请输入相应的序号:
 ''')
             
@@ -148,6 +140,53 @@ while 1:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
                 time.sleep(0.1)
             break
+
+        if command=='4':
+            import tkinter as tk
+            from tkinter.filedialog import askopenfilenames
+            tk.Tk().withdraw();
+            print(u'请同时选择*按选项文本数据*和*按选项序号数据*') 
+            initialdir = ".\\data"
+            title =u"请选择按选项文本数据和按选项数据（同时选择两份数据）"
+            filetypes = (("Excel files","*.xls;*.xlsx"),("all files","*.*"))
+            filenames=[]
+            while len(filenames)!=2:
+                filenames=askopenfilenames(initialdir=initialdir,title=title,filetypes=filetypes)
+                if len(filenames)!=2:
+                    print('请重新选择，一共要选择两个文件.')
+            dshape=[]
+            for filepath in filenames:
+                data=rpt.read_data(filepath)
+                m,n=data.shape
+                dshape=dshape+[m,n]
+            if dshape[0]!=dshape[2]:
+                print('选择的两组数据应该不是同一份问卷的，请返回检查.')
+                continue
+            if dshape[1]>dshape[3]:
+                filename1=filenames[1]
+                filename2=filenames[0]
+            else:
+                filename1=filenames[0]
+                filename2=filenames[1]
+            # 识别完后开始编码    
+            try:
+                data,code=rpt.wenjuanxing([filename1,filename2])
+                data,code=rpt.spec_rcode(data,code)
+            except Exception as e:
+                print(e)
+                print('问卷星数据导入失败, 请检查.')
+                continue
+            cross_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
+            print('将题目进行编码......\n')
+            for k in cross_qlist:
+                print('{key}:  {c}'.format(key=k,c=code[k]['content']))
+                time.sleep(0.1)
+            rpt.save_code(code,'code.xlsx')
+            rpt.save_data(data,'data.xlsx')
+            rpt.save_data(data,'data_readable.xlsx',code)
+            print('\n编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
+            break            
+
     except Exception as e:
         print(e)
         print('错误..')
@@ -329,8 +368,8 @@ x. 全自动一键生成
     except Exception as e:
         print(e)
         print('错误..')
-        
-        
+      
+       
         
 
        
