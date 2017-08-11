@@ -36,9 +36,6 @@ from pptx.enum.chart import XL_LABEL_POSITION
 from pptx.dml.color import RGBColor
 
 
-
-
-
 def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
     '''将pandas数据框添加到slide上，并生成pptx上的表格
     输入：
@@ -827,7 +824,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             c1=d1.loc[ind,current_name].unique()
             c2=d2.loc[ind,current_name].unique()
             #print('========= %s========'%current_name)
-            if (c2.dtype == object) or (list(c1)==list(c2)) or (len(c2)>50):
+            if (c2.dtype == object) or ((list(c1)==list(c2)) and len(c2)>=min(15,len(d2[ind]))) or (len(c2)>50):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
@@ -1224,12 +1221,13 @@ def gof_test(fo,fe=None,alpha=0.05):
     C=len(fo)
     if not fe:
         N=fo.sum() 
-        fe=np.array([N/C]*C)
+        fe=np.array([N/C]*C)        
     else:
         fe=np.array(fe).flatten()
     chi_value=(fo-fe)**2/fe
     chi_value=chi_value.sum()
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
+    #CV=np.sqrt((fo-fe)**2/fe**2/(C-1))*100
     if chi_value>chi_value_fit:
         result=1
     else:
