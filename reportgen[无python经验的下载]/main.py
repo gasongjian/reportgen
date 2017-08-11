@@ -23,6 +23,15 @@ mytemplate='template.pptx'
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
 
+
+'''
+import tkinter as tk
+from tkinter.filedialog import askopenfilename
+tk.Tk().withdraw();
+filename=askopenfilename(initialdir = ".\\data",title =u"请选择按选项文本数据",filetypes = (("xls files","*.xls"),("xlsx files","*.xlsx"),("all files","*.*")))
+'''
+
+
 #==================================================================
 while 1:
     #print('=' * 70)
@@ -321,3 +330,7 @@ x. 全自动一键生成
         print(e)
         print('错误..')
         
+        
+        
+
+       
