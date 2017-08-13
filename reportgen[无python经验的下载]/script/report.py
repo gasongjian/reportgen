@@ -36,9 +36,6 @@ from pptx.enum.chart import XL_LABEL_POSITION
 from pptx.dml.color import RGBColor
 
 
-
-
-
 def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
     '''将pandas数据框添加到slide上，并生成pptx上的表格
     输入：
@@ -413,6 +410,7 @@ def pptx_layouts(prs):
                 #blank_slide.append((i,j))
     return title_only_slide
 
+'''
 def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
     if os.path.exists('template.pptx'):
         prs=Presentation('template.pptx')
@@ -430,8 +428,125 @@ def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
     for df0 in df:
         plot_chart(prs,pd.DataFrame(df0),chart_type,title='',summary='',layouts=layouts)
     prs.save(filename)
-    
 
+'''    
+def to_pptx(slides,filename=None,template=None,chart_type='COLUMN_CLUSTERED'):
+    '''
+    每一页PPT设定为四个元素：标题、结论、主题、脚注
+    输入：
+    slides: 每一页ppt所需要的元素[
+        {title:,#标题
+        summary:,#结论
+        data:,# DataFrame数据或者文本数据
+        slide_type:,#chart、table、text
+        data_config:,#存储绘制所需要的相关信息
+        footnote:,#脚注
+        layouts:#该slide使用的ppt版式
+        },]
+    filename: 缺省以时间命名
+    template:使用的模板    
+    '''
+    # =============[参数处理]===================
+    #  模板
+    if template is None:
+        if os.path.exists('template.pptx'):
+            prs=Presentation('template.pptx')
+        else:
+            prs=Presentation()
+    else :
+        prs=Presentation(template)
+    # 版式
+    title_only_slide=pptx_layouts(prs)
+    if title_only_slide:
+        layouts=title_only_slide[0]
+    else:
+        layouts=[0,0]
+    # 文件名
+    if not filename:
+        filename=time.strftime('%Y%m%d%H%M.pptx', time.localtime())
+    # 其他
+    title=''
+    summary=''
+    footnote=''
+    
+    # 处理slides数据
+    if (not isinstance(slides,list)) and (not isinstance(slides,tuple)):
+        slides=[slides]
+
+    # 补全相关信息
+    for i in range(len(slides)):
+        slide=slides[i]
+        # 补全相关信息,数据处理部分待定
+        if not isinstance(slide,dict):
+            slide={'data':slide}
+            slide['title']=title
+            slide['summary']=summary
+            slide['footnote']=footnote
+            slide['layouts']=layouts
+            if isinstance(slide['data'],pd.core.frame.DataFrame):
+                slide['slide_type']='chart'
+                slide['data_config']='COLUMN_CLUSTERED'
+            elif isinstance(slide['data'],pd.core.series.Series):
+                slide['data']=pd.DataFrame(slide['data'])
+                slide['slide_type']='chart'
+                slide['data_config']='COLUMN_CLUSTERED'
+            elif isinstance(slide['data'],str):
+                slide['slide_type']='text'
+                slide['data_config']=''
+            else:
+                print('未知的数据格式，请检查数据')
+                break
+        elif isinstance(slide,dict):
+            if 'data' not in slide:
+                print('没有找到需要的数据，请检查')
+                slide['slide_type']=None
+                slide['data_config']=None
+                continue
+            if isinstance(slide['data'],pd.core.series.Series):
+                slide['data']=pd.DataFrame(slide['data'])
+            if 'title' not in slide:
+                slide['title']=title
+            if 'summary' not in slide:
+                slide['summary']=summary
+            if 'footnote' not in slide:
+                slide['footnote']=footnote
+            if 'layouts' not in slide:
+                slide['layouts']=layouts
+            if 'slide_type' not in slide:
+                if isinstance(slide['data'],pd.core.frame.DataFrame):
+                    slide['slide_type']='chart'
+                    slide['data_config']='COLUMN_CLUSTERED'                
+                elif isinstance(slide['data'],str):
+                    slide['slide_type']='text'
+                    slide['data_config']=''
+                else:
+                    print('未知的数据格式，请检查数据')
+                    slide['slide_type']=None
+                    slide['data_config']=None
+                    slides[i]=slide
+                    continue
+        slides[i]=slide
+    for slide in slides:
+        slide_type=slide['slide_type']
+        title=slide['title']
+        summary=slide['summary']
+        footnote=slide['footnote']
+        layouts=slide['layouts']
+        data=slide['data']
+        data_config=slide['data_config']
+        if (slide_type is None) or (not isinstance(slide_type,str)):
+            continue
+        slide_type=slide_type.lower()
+        '''
+        一些相关的细节待补充
+        '''
+        if slide_type == 'chart':
+            plot_chart(prs,data,chart_type=data_config,title=title,summary=summary,layouts=layouts);
+        elif slide_type == 'table':
+            plot_table(prs,data,layouts=layouts,title=title,summary=summary);
+        elif slide_type in ['text','txt']:
+            plot_textbox(prs,data,layouts=layouts,title=title,summary=summary);
+    prs.save(filename)
 
 
 #=================================================================
@@ -440,7 +555,7 @@ def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
 #                    【问卷数据处理】
 #
 #
-#================================================================
+#==================================================================
 
 
 
@@ -592,6 +707,64 @@ Qn.code_order: 题目类别的顺序，用于PPT报告的生成[一般后期添�
 Qn.name: 特殊类型，包含：城市题、NPS题等
 Qn.weight:dict,每个选项的权重
 '''
+
+
+def dataText_to_code(df,sep,qqlist=None):
+    '''编码文本数据
+    
+    '''
+
+    if sep in [';','┋']:
+        qtype='多选题'
+    elif sep in ['-->','→']:
+        qtype='排序题'
+    if not qqlist:
+        qqlist=df.columns
+    # 处理多选题
+    code={}
+    for qq in qqlist:
+        tmp=df[qq].map(lambda x : x.split(sep)  if isinstance(x,str) else [])
+        item_list=sorted(set(tmp.sum()))
+        if qtype == '多选题':
+            tmp=tmp.map(lambda x: [int(t in x) for t in item_list])
+            code_tmp={'code':{},'qtype':u'多选题','qlist':[],'content':qq}
+        elif qtype == '排序题':
+            tmp=tmp.map(lambda x:[x.index(t)+1 if t in x else np.nan for t in item_list])
+            code_tmp={'code':{},'qtype':u'排序题','qlist':[],'content':qq}
+        for i,t in enumerate(item_list):
+            column_name='{}_A{:.0f}'.format(qq,i+1)
+            df[column_name]=tmp.map(lambda x:x[i])
+            code_tmp['code'][column_name]=item_list[i]
+            code_tmp['qlist']=code_tmp['qlist']+[column_name]
+        code[qq]=code_tmp
+        df.drop(qq,axis=1,inplace=True)
+    return df,code
+
+def dataCode_to_text(df,code=None):
+    '''将按序号数据转换成文本
+    
+    '''
+    if df.max().max()>1:
+        sep='→'
+    else:
+        sep='┋'
+    if code:
+        df=df.rename(code)
+    qlist=list(df.columns)
+    df['text']=np.nan
+    if sep in ['┋']:
+        for i in df.index:
+            w=df.loc[i,:]==1
+            df.loc[i,'text']=sep.join(list(w.index[w]))
+    elif sep in ['→']:
+        for i in df.index:
+            w=df.loc[i,:]
+            w=w[w>=1].sort_values()
+            df.loc[i,'text']=sep.join(list(w.index))
+    df.drop(qlist,axis=1,inplace=True)
+    return df
+
+
 
 def wenjuanwang(filepath='.\\data',encoding='gbk'):
     '''问卷网数据导入和编码
@@ -790,7 +963,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
             c1=d1.loc[ind,current_name].unique()
             c2=d2.loc[ind,current_name].unique()
             #print('========= %s========'%current_name)
-            if (c2.dtype == object) or (list(c1)==list(c2)) or (len(c2)>50):
+            if (c2.dtype == object) or ((list(c1)==list(c2)) and len(c2)>=min(15,len(d2[ind]))) or (len(c2)>50):
                 code[current_name]['qtype']=u'填空题'
             else:
                 code[current_name]['qtype']=u'单选题'
@@ -958,7 +1131,6 @@ def spec_rcode(data,code):
             code[qq+'b']={'content':'城市','qtype':'填空题','qlist':[qq+'b']}
             tmp3=data[qq+'b'].map(lambda x: city[x] if x in city.keys() else x)
             tmp3=tmp3.map(lambda x: 6 if isinstance(x,str) else x)
-            print(len(tmp3))
             data.insert(ind+3,qq+'c',tmp3)
             code[qq+'c']={'content':'城市分级','qtype':'单选题','qlist':[qq+'c'],\
             'code':{0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
@@ -1041,7 +1213,7 @@ def data_auto_code(data):
 
 
 
-def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
+def save_data(data,filename=u'data.xlsx',code=None):
     '''保存问卷数据到本地
     根据filename后缀选择相应的格式保存
     如果有code,则保存按文本数据
@@ -1051,24 +1223,42 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
     if code:
         for qq in code.keys():
             qtype=code[qq]['qtype']
+            qlist=code[qq]['qlist']
             if qtype == u'单选题':
-                data1[qq].replace(code[qq]['code'],inplace=True)
+                # 将序号换成文本，题号加上具体内容
+                data1[qlist[0]].replace(code[qq]['code'],inplace=True)
                 data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
             elif qtype == u'矩阵单选题':
+                # 同单选题
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
                 tmp1=code[qq]['qlist']
                 tmp2=['{}({})'.format(q,code[qq]['code_r'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'排序题']:
+                # 先变成一道题，插入表中，然后再把序号变成文本
+                tmp=data[qlist]
+                tmp=tmp.rename(columns=code[qq]['code'])
+                tmp=dataCode_to_text(tmp)          
+                ind=list(data1.columns).index(qlist[0])
+                qqname='{}({})'.format(qq,code[qq]['content'])
+                data1.insert(ind,qqname,tmp)
+                
                 tmp1=code[qq]['qlist']                
                 tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'多选题']:
-                tmp1=code[qq]['qlist']
-                for q in tmp1:
+                # 先变成一道题，插入表中，然后再把序号变成文本
+                tmp=data[qlist]
+                tmp=tmp.rename(columns=code[qq]['code'])
+                tmp=dataCode_to_text(tmp)             
+                ind=list(data1.columns).index(qlist[0])
+                qqname='{}({})'.format(qq,code[qq]['content'])
+                data1.insert(ind,qqname,tmp)
+                
+                for q in qlist:
                     data1[q].replace({0:'',1:code[qq]['code'][q]},inplace=True)
-                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
-                data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in qlist]
+                data1.rename(columns=dict(zip(qlist,tmp2)),inplace=True)
 
             else:
                 data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
@@ -1076,6 +1266,7 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
         data1.to_excel(filename,index=False)
     elif savetype == u'csv':
         data1.to_csv(filename,index=False)
+
         
 def read_data(filename):
     savetype=os.path.splitext(filename)[1][1:]
@@ -1188,12 +1379,13 @@ def gof_test(fo,fe=None,alpha=0.05):
     C=len(fo)
     if not fe:
         N=fo.sum() 
-        fe=np.array([N/C]*C)
+        fe=np.array([N/C]*C)        
     else:
         fe=np.array(fe).flatten()
     chi_value=(fo-fe)**2/fe
     chi_value=chi_value.sum()
     chi_value_fit=stats.chi2.ppf(q=1-alpha,df=C-1)
+    #CV=np.sqrt((fo-fe)**2/fe**2/(C-1))*100
     if chi_value>chi_value_fit:
         result=1
     else:
@@ -1287,7 +1479,7 @@ def scatter(data,legend=False,title=None):
         ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
                    label=dd.columns[1])
         for _, row in dd.iterrows():
-            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont)
+            ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
     ax.axis('equal')
     if legend:
         ax.legend(loc='best')
@@ -1783,7 +1975,7 @@ def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
         import relations as rlt
     except :
         print('没有找到关联分析需要的包: import relations')
-        return (None,None,None)
+        return (None,None,None)    
     a=rlt.apriori(df, minSup, minConf)
     rules,freq=a.genRules(Y=Y)
     if rules is None:
@@ -2121,7 +2313,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     # 交叉变量中每个类别的频数分布.
     if code[cross_class]['qtype'] == u'单选题':
         #data[cross_class].replace(code[cross_class]['code'],inplace=True)
-        cross_class_freq=data[cross_class].value_counts()
+        cross_class_freq=data[code[cross_class]['qlist'][0]].value_counts()
         cross_class_freq[u'合计']=cross_class_freq.sum()
         cross_class_freq.rename(index=code[cross_class]['code'],inplace=True)
         #cross_columns_qlist=code[cross_class]['qlist']
@@ -2496,7 +2688,17 @@ max_column_chart=20,template=None):
 
         if qtype == '多选题':
             tmp=data[qlist].rename(columns=code[qq]['code'])
-            aso_result,rules,freq=association_rules(tmp)
+            tmp_t=len(tmp)*tmp.shape[1]*np.log(tmp.shape[1])
+            if tmp_t<20000:
+                minSup=0.08
+                minConf=0.40
+            elif tmp_t<50000:
+                minSup=0.15
+                minConf=0.60
+            else:
+                minSup=0.20
+                minConf=0.60
+            aso_result,rules,freq=association_rules(tmp,minSup=minSup,minConf=minConf)
             numItem_mean=t1.sum().sum()/sample_len_qq
             if u'合计' in t1.index:
                 numItem_mean=numItem_mean/2            

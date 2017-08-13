@@ -410,6 +410,7 @@ def pptx_layouts(prs):
                 #blank_slide.append((i,j))
     return title_only_slide
 
+'''
 def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
     if os.path.exists('template.pptx'):
         prs=Presentation('template.pptx')
@@ -427,8 +428,125 @@ def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
     for df0 in df:
         plot_chart(prs,pd.DataFrame(df0),chart_type,title='',summary='',layouts=layouts)
     prs.save(filename)
-    
 
+'''    
+def to_pptx(slides,filename=None,template=None,chart_type='COLUMN_CLUSTERED'):
+    '''
+    每一页PPT设定为四个元素：标题、结论、主题、脚注
+    输入：
+    slides: 每一页ppt所需要的元素[
+        {title:,#标题
+        summary:,#结论
+        data:,# DataFrame数据或者文本数据
+        slide_type:,#chart、table、text
+        data_config:,#存储绘制所需要的相关信息
+        footnote:,#脚注
+        layouts:#该slide使用的ppt版式
+        },]
+    filename: 缺省以时间命名
+    template:使用的模板    
+    '''
+    # =============[参数处理]===================
+    #  模板
+    if template is None:
+        if os.path.exists('template.pptx'):
+            prs=Presentation('template.pptx')
+        else:
+            prs=Presentation()
+    else :
+        prs=Presentation(template)
+    # 版式
+    title_only_slide=pptx_layouts(prs)
+    if title_only_slide:
+        layouts=title_only_slide[0]
+    else:
+        layouts=[0,0]
+    # 文件名
+    if not filename:
+        filename=time.strftime('%Y%m%d%H%M.pptx', time.localtime())
+    # 其他
+    title=''
+    summary=''
+    footnote=''
+    
+    # 处理slides数据
+    if (not isinstance(slides,list)) and (not isinstance(slides,tuple)):
+        slides=[slides]
+
+    # 补全相关信息
+    for i in range(len(slides)):
+        slide=slides[i]
+        # 补全相关信息,数据处理部分待定
+        if not isinstance(slide,dict):
+            slide={'data':slide}
+            slide['title']=title
+            slide['summary']=summary
+            slide['footnote']=footnote
+            slide['layouts']=layouts
+            if isinstance(slide['data'],pd.core.frame.DataFrame):
+                slide['slide_type']='chart'
+                slide['data_config']='COLUMN_CLUSTERED'
+            elif isinstance(slide['data'],pd.core.series.Series):
+                slide['data']=pd.DataFrame(slide['data'])
+                slide['slide_type']='chart'
+                slide['data_config']='COLUMN_CLUSTERED'
+            elif isinstance(slide['data'],str):
+                slide['slide_type']='text'
+                slide['data_config']=''
+            else:
+                print('未知的数据格式，请检查数据')
+                break
+        elif isinstance(slide,dict):
+            if 'data' not in slide:
+                print('没有找到需要的数据，请检查')
+                slide['slide_type']=None
+                slide['data_config']=None
+                continue
+            if isinstance(slide['data'],pd.core.series.Series):
+                slide['data']=pd.DataFrame(slide['data'])
+            if 'title' not in slide:
+                slide['title']=title
+            if 'summary' not in slide:
+                slide['summary']=summary
+            if 'footnote' not in slide:
+                slide['footnote']=footnote
+            if 'layouts' not in slide:
+                slide['layouts']=layouts
+            if 'slide_type' not in slide:
+                if isinstance(slide['data'],pd.core.frame.DataFrame):
+                    slide['slide_type']='chart'
+                    slide['data_config']='COLUMN_CLUSTERED'                
+                elif isinstance(slide['data'],str):
+                    slide['slide_type']='text'
+                    slide['data_config']=''
+                else:
+                    print('未知的数据格式，请检查数据')
+                    slide['slide_type']=None
+                    slide['data_config']=None
+                    slides[i]=slide
+                    continue
+        slides[i]=slide
+    for slide in slides:
+        slide_type=slide['slide_type']
+        title=slide['title']
+        summary=slide['summary']
+        footnote=slide['footnote']
+        layouts=slide['layouts']
+        data=slide['data']
+        data_config=slide['data_config']
+        if (slide_type is None) or (not isinstance(slide_type,str)):
+            continue
+        slide_type=slide_type.lower()
+        '''
+        一些相关的细节待补充
+        '''
+        if slide_type == 'chart':
+            plot_chart(prs,data,chart_type=data_config,title=title,summary=summary,layouts=layouts);
+        elif slide_type == 'table':
+            plot_table(prs,data,layouts=layouts,title=title,summary=summary);
+        elif slide_type in ['text','txt']:
+            plot_textbox(prs,data,layouts=layouts,title=title,summary=summary);
+    prs.save(filename)
 
 
 #=================================================================
@@ -437,7 +555,7 @@ def to_pptx(df,filename=None,chart_type='COLUMN_CLUSTERED'):
 #                    【问卷数据处理】
 #
 #
-#================================================================
+#==================================================================
 
 
 
@@ -619,11 +737,32 @@ def dataText_to_code(df,sep,qqlist=None):
             code_tmp['code'][column_name]=item_list[i]
             code_tmp['qlist']=code_tmp['qlist']+[column_name]
         code[qq]=code_tmp
-        df.drop(qq,aixs=1,inplace=True)
+        df.drop(qq,axis=1,inplace=True)
     return df,code
 
-
-
+def dataCode_to_text(df,code=None):
+    '''将按序号数据转换成文本
+    
+    '''
+    if df.max().max()>1:
+        sep='→'
+    else:
+        sep='┋'
+    if code:
+        df=df.rename(code)
+    qlist=list(df.columns)
+    df['text']=np.nan
+    if sep in ['┋']:
+        for i in df.index:
+            w=df.loc[i,:]==1
+            df.loc[i,'text']=sep.join(list(w.index[w]))
+    elif sep in ['→']:
+        for i in df.index:
+            w=df.loc[i,:]
+            w=w[w>=1].sort_values()
+            df.loc[i,'text']=sep.join(list(w.index))
+    df.drop(qlist,axis=1,inplace=True)
+    return df
 
 
 
@@ -1074,7 +1213,7 @@ def data_auto_code(data):
 
 
 
-def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
+def save_data(data,filename=u'data.xlsx',code=None):
     '''保存问卷数据到本地
     根据filename后缀选择相应的格式保存
     如果有code,则保存按文本数据
@@ -1084,24 +1223,42 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
     if code:
         for qq in code.keys():
             qtype=code[qq]['qtype']
+            qlist=code[qq]['qlist']
             if qtype == u'单选题':
-                data1[qq].replace(code[qq]['code'],inplace=True)
+                # 将序号换成文本，题号加上具体内容
+                data1[qlist[0]].replace(code[qq]['code'],inplace=True)
                 data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
             elif qtype == u'矩阵单选题':
+                # 同单选题
                 data1[code[qq]['qlist']].replace(code[qq]['code'],inplace=True)
                 tmp1=code[qq]['qlist']
                 tmp2=['{}({})'.format(q,code[qq]['code_r'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'排序题']:
+                # 先变成一道题，插入表中，然后再把序号变成文本
+                tmp=data[qlist]
+                tmp=tmp.rename(columns=code[qq]['code'])
+                tmp=dataCode_to_text(tmp)          
+                ind=list(data1.columns).index(qlist[0])
+                qqname='{}({})'.format(qq,code[qq]['content'])
+                data1.insert(ind,qqname,tmp)
+                
                 tmp1=code[qq]['qlist']                
                 tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'多选题']:
-                tmp1=code[qq]['qlist']
-                for q in tmp1:
+                # 先变成一道题，插入表中，然后再把序号变成文本
+                tmp=data[qlist]
+                tmp=tmp.rename(columns=code[qq]['code'])
+                tmp=dataCode_to_text(tmp)             
+                ind=list(data1.columns).index(qlist[0])
+                qqname='{}({})'.format(qq,code[qq]['content'])
+                data1.insert(ind,qqname,tmp)
+                
+                for q in qlist:
                     data1[q].replace({0:'',1:code[qq]['code'][q]},inplace=True)
-                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
-                data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
+                tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in qlist]
+                data1.rename(columns=dict(zip(qlist,tmp2)),inplace=True)
 
             else:
                 data1.rename(columns={qq:'{}({})'.format(qq,code[qq]['content'])},inplace=True)
@@ -1109,6 +1266,7 @@ def save_data(data,filename=u'data.xlsx',code=None,columns_name=False):
         data1.to_excel(filename,index=False)
     elif savetype == u'csv':
         data1.to_csv(filename,index=False)
+
         
 def read_data(filename):
     savetype=os.path.splitext(filename)[1][1:]
