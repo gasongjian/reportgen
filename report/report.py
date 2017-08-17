@@ -1306,9 +1306,9 @@ def sa_to_ma(data):
     data_ma.loc[data.isnull(),:]=np.nan
     return data_ma
 
-def to_dummpy(data,code,qqlist=None):
+def to_dummpy(data,code,qqlist=None,qtype_new='多选题'):
     '''转化成哑变量
-    将数据中的单选题全部转化成哑变量，多选题保留，其他题目全部删除
+    将数据中所有的单选题全部转化成哑变量，另外剔除掉开放题和填空题
     返回一个很大的只有0和1的数据
     '''
     if qqlist is None:
@@ -1331,13 +1331,16 @@ def to_dummpy(data,code,qqlist=None):
             tmp=pd.DataFrame(index=data0.index,columns=columns_name)
             for i,c in enumerate(categorys):
                 tmp[columns_name[i]]=data0.map(lambda x : int(x==c))
-            tmp.loc[data0.isnull(),:]=np.nan
-            bcode.update({qq:dict(zip(columns_name,cname))})
+            #tmp.loc[data0.isnull(),:]=0
+            code_tmp={'content':code[qq]['content'],'qtype':qtype_new}
+            code_tmp['code']=dict(zip(columns_name,cname))
+            code_tmp['qlist']=columns_name
+            bcode.update({qq:code_tmp})
             bdata=pd.concat([bdata,tmp],axis=1)
-        elif qtype=='多选题':
-            tmp=data[code[qq]['qlist']]
+        elif qtype in ['多选题','排序题','矩阵单选题']:
             bdata=pd.concat([bdata,data0],axis=1)
-            bcode.update({qq:code[qq]['code']})
+            bcode.update({qq:code[qq]})
+    bdata=bdata.fillna(0)
     return bdata,bcode
 
 
