@@ -1306,7 +1306,7 @@ def sa_to_ma(data):
     data_ma.loc[data.isnull(),:]=np.nan
     return data_ma
 
-def to_dummpy(data,code,qqlist=None,qtype_new='多选题'):
+def to_dummpy(data,code,qqlist=None,qtype_new='多选题',ignore_open=True):
     '''转化成哑变量
     将数据中所有的单选题全部转化成哑变量，另外剔除掉开放题和填空题
     返回一个很大的只有0和1的数据
@@ -1341,7 +1341,86 @@ def to_dummpy(data,code,qqlist=None,qtype_new='多选题'):
             bdata=pd.concat([bdata,data0],axis=1)
             bcode.update({qq:code[qq]})
     bdata=bdata.fillna(0)
+    try:
+        bdata=bdata.astype(np.int64,raise_on_error=False)
+    except :
+        pass
     return bdata,bcode
+
+
+def qdata_flatten(data,code,quesid=None,userid_begin=None):
+    '''将问卷数据展平，字段如下
+    userid: 用户ID
+    quesid: 问卷ID
+    qnum: 题号
+    qname: 题目内容
+    qtype: 题目类型
+    itemnum: 选项序号
+    itemname: 选项内容
+    code: 用户的选择
+    codename: 用户选择的具体值    
+    '''
+
+    if not userid_begin:
+        userid_begin=1000000
+    data.index=[userid_begin+i+1 for i in range(len(data))]
+    data,code=to_dummpy(data,code,qtype_new='单选题')
+    code_item={}
+    for qq in code:
+        if code[qq]['qtype']=='矩阵单选题':
+            code_item.update(code[qq]['code_r'])
+        else :
+            code_item.update(code[qq]['code'])
+    
+    qdata=data.stack().reset_index()
+    qdata.columns=['userid','qn_an','code']
+    qdata['qnum']=qdata['qn_an'].map(lambda x:x.split('_')[0])
+    qdata['itemnum']=qdata['qn_an'].map(lambda x:'_'.join(x.split('_')[1:]))     
+
+    if quesid:    
+        qdata['quesid']=quesid
+        qdata=qdata[['userid','quesid','qnum','itemnum','code']]
+    else:
+        qdata=qdata[['userid','qnum','itemnum','code']]
+    #  获取描述统计信息:
+    samplelen=qdata.groupby(['userid','qnum'])['code'].sum().map(lambda x:int(x>0)).unstack().sum()
+    quesinfo=qdata.groupby(['qnum','itemnum','code'])['code'].count()
+    quesinfo.name='count'
+    quesinfo=quesinfo.reset_index()
+    quesinfo=quesinfo[quesinfo['code']!=0]
+    #quesinfo=qdata.groupby(['quesid','qnum','itemnum'])['code'].sum()
+    quesinfo['samplelen']=quesinfo['qnum'].replace(samplelen.to_dict())
+    quesinfo['percent(%)']=0
+    quesinfo.loc[quesinfo['samplelen']>0,'percent(%)']=100*quesinfo.loc[quesinfo['samplelen']>0,'count']/quesinfo.loc[quesinfo['samplelen']>0,'samplelen']
+
+    quesinfo['qname']=quesinfo['qnum'].map(lambda x: code[x]['content'])
+    quesinfo['qtype']=quesinfo['qnum'].map(lambda x: code[x]['qtype'])
+    quesinfo['itemname']=quesinfo['qnum']+quesinfo['itemnum'].map(lambda x:'_%s'%x)
+    quesinfo['itemname']=quesinfo['itemname'].replace(code_item)
+    #quesinfo['itemname']=quesinfo['qn_an'].map(lambda x: code[x.split('_')[0]]['code_r'][x] if \
+     #code[x.split('_')[0]]['qtype']=='矩阵单选题' else code[x.split('_')[0]]['code'][x])  
+    # 各个选项的含义 
+    quesinfo['codename']=''
+    quesinfo.loc[quesinfo['code']==0,'codename']='否' 
+    quesinfo.loc[quesinfo['code']==1,'codename']='是' 
+    quesinfo['tmp']=quesinfo['qnum']+quesinfo['code'].map(lambda x:'_%s'%int(x)) 
+    quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='矩阵单选题'),'tmp']\
+    .map(lambda x: code[x.split('_')[0]]['code'][int(x.split('_')[1])]))    
+    quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='排序题'),'tmp'].map(lambda x: 'Top{}'.format(x.split('_')[1])))
+    if quesid:    
+        quesinfo['quesid']=quesid
+        quesinfo=quesinfo[['quesid','qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+    else:
+        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+    # 排序
+    quesinfo['qnum']=quesinfo['qnum'].astype('category')
+    quesinfo['qnum'].cat.set_categories(sorted(list(quesinfo['qnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
+    quesinfo['itemnum']=quesinfo['itemnum'].astype('category')
+    quesinfo['itemnum'].cat.set_categories(sorted(list(quesinfo['itemnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
+    quesinfo=quesinfo.sort_values(['qnum','itemnum','code'])
+    return qdata,quesinfo
+
+
 
 
 def confidence_interval(p,n,alpha=0.05):

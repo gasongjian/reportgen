@@ -26,6 +26,7 @@ import time
 
 import pandas as pd
 import numpy as np
+import config
 
 from pptx import Presentation
 from pptx.chart.data import ChartData,XyChartData,BubbleChartData
@@ -241,8 +242,9 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     # 添加标题 title=u'这里是标题'
     slide.shapes.title.text = title
     # 添加结论 summary=u'这里是一些简短的结论'
-    left,top = Emu(0.10*slide_width), Emu(0.14*slide_height)
-    width,height = Emu(0.80*slide_width), Emu(0.15*slide_height)
+    #summary_loc=[0.10,0.14,0.80,0.15]
+    left,top = Emu(config.summary_loc[0]*slide_width), Emu(config.summary_loc[1]*slide_height)
+    width,height = Emu(config.summary_loc[2]*slide_width), Emu(config.summary_loc[3]*slide_height)
     txBox = slide.shapes.add_textbox(left, top, width, height)
     txBox.text_frame.text=summary
     txBox.text_frame.paragraphs[0].font.language_id = 3076
@@ -277,8 +279,10 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     chart_data=df_to_chartdata(df,chart_type_code)
     #left, top = Emu(0.05*slide_width), Emu(0.20*slide_height)
     #width, height = Emu(0.85*slide_width), Emu(0.70*slide_height)
-    left, top = Emu(0.10*slide_width), Emu(0.30*slide_height)
-    width, height = Emu(0.80*slide_width), Emu(0.60*slide_height)
+    #chart_loc=[0.10,0.30,0.80,0.60]
+    left, top = Emu(config.chart_loc[0]*slide_width), Emu(config.chart_loc[1]*slide_height)
+    width, height = Emu(config.chart_loc[2]*slide_width), Emu(config.chart_loc[3]*slide_height)
+    
     chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0], \
     left, top, width, height, chart_data).chart
 
@@ -311,9 +315,11 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     # 3、可能会有某一列全为0，此时单独考虑
     if  ((df.sum()[df.sum()!=0]>90).all()) and ((df<=100).all().all()) and (u'总体' not in df.index):
         # 数据条的数据标签格式
-        number_format1='0.0"%"'
+        #number_format1='0.0"%"'
+        number_format1=config.number_format_chart_1
         # 坐标轴的数据标签格式
-        number_format2='0"%"'
+        #number_format2='0"%"'
+        number_format2=config.number_format_chart_label
     else:
         number_format1='0.00'
         number_format2='0.0'
@@ -1300,9 +1306,9 @@ def sa_to_ma(data):
     data_ma.loc[data.isnull(),:]=np.nan
     return data_ma
 
-def to_dummpy(data,code,qqlist=None):
+def to_dummpy(data,code,qqlist=None,qtype_new='多选题',ignore_open=True):
     '''转化成哑变量
-    将数据中的单选题全部转化成哑变量，多选题保留，其他题目全部删除
+    将数据中所有的单选题全部转化成哑变量，另外剔除掉开放题和填空题
     返回一个很大的只有0和1的数据
     '''
     if qqlist is None:
@@ -1325,14 +1331,96 @@ def to_dummpy(data,code,qqlist=None):
             tmp=pd.DataFrame(index=data0.index,columns=columns_name)
             for i,c in enumerate(categorys):
                 tmp[columns_name[i]]=data0.map(lambda x : int(x==c))
-            tmp.loc[data0.isnull(),:]=np.nan
-            bcode.update({qq:dict(zip(columns_name,cname))})
+            #tmp.loc[data0.isnull(),:]=0
+            code_tmp={'content':code[qq]['content'],'qtype':qtype_new}
+            code_tmp['code']=dict(zip(columns_name,cname))
+            code_tmp['qlist']=columns_name
+            bcode.update({qq:code_tmp})
             bdata=pd.concat([bdata,tmp],axis=1)
-        elif qtype=='多选题':
-            tmp=data[code[qq]['qlist']]
+        elif qtype in ['多选题','排序题','矩阵单选题']:
             bdata=pd.concat([bdata,data0],axis=1)
-            bcode.update({qq:code[qq]['code']})
+            bcode.update({qq:code[qq]})
+    bdata=bdata.fillna(0)
+    try:
+        bdata=bdata.astype(np.int64,raise_on_error=False)
+    except :
+        pass
     return bdata,bcode
+
+
+def qdata_flatten(data,code,quesid=None,userid_begin=None):
+    '''将问卷数据展平，字段如下
+    userid: 用户ID
+    quesid: 问卷ID
+    qnum: 题号
+    qname: 题目内容
+    qtype: 题目类型
+    itemnum: 选项序号
+    itemname: 选项内容
+    code: 用户的选择
+    codename: 用户选择的具体值    
+    '''
+
+    if not userid_begin:
+        userid_begin=1000000
+    data.index=[userid_begin+i+1 for i in range(len(data))]
+    data,code=to_dummpy(data,code,qtype_new='单选题')
+    code_item={}
+    for qq in code:
+        if code[qq]['qtype']=='矩阵单选题':
+            code_item.update(code[qq]['code_r'])
+        else :
+            code_item.update(code[qq]['code'])
+    
+    qdata=data.stack().reset_index()
+    qdata.columns=['userid','qn_an','code']
+    qdata['qnum']=qdata['qn_an'].map(lambda x:x.split('_')[0])
+    qdata['itemnum']=qdata['qn_an'].map(lambda x:'_'.join(x.split('_')[1:]))     
+
+    if quesid:    
+        qdata['quesid']=quesid
+        qdata=qdata[['userid','quesid','qnum','itemnum','code']]
+    else:
+        qdata=qdata[['userid','qnum','itemnum','code']]
+    #  获取描述统计信息:
+    samplelen=qdata.groupby(['userid','qnum'])['code'].sum().map(lambda x:int(x>0)).unstack().sum()
+    quesinfo=qdata.groupby(['qnum','itemnum','code'])['code'].count()
+    quesinfo.name='count'
+    quesinfo=quesinfo.reset_index()
+    quesinfo=quesinfo[quesinfo['code']!=0]
+    #quesinfo=qdata.groupby(['quesid','qnum','itemnum'])['code'].sum()
+    quesinfo['samplelen']=quesinfo['qnum'].replace(samplelen.to_dict())
+    quesinfo['percent(%)']=0
+    quesinfo.loc[quesinfo['samplelen']>0,'percent(%)']=100*quesinfo.loc[quesinfo['samplelen']>0,'count']/quesinfo.loc[quesinfo['samplelen']>0,'samplelen']
+
+    quesinfo['qname']=quesinfo['qnum'].map(lambda x: code[x]['content'])
+    quesinfo['qtype']=quesinfo['qnum'].map(lambda x: code[x]['qtype'])
+    quesinfo['itemname']=quesinfo['qnum']+quesinfo['itemnum'].map(lambda x:'_%s'%x)
+    quesinfo['itemname']=quesinfo['itemname'].replace(code_item)
+    #quesinfo['itemname']=quesinfo['qn_an'].map(lambda x: code[x.split('_')[0]]['code_r'][x] if \
+     #code[x.split('_')[0]]['qtype']=='矩阵单选题' else code[x.split('_')[0]]['code'][x])  
+    # 各个选项的含义 
+    quesinfo['codename']=''
+    quesinfo.loc[quesinfo['code']==0,'codename']='否' 
+    quesinfo.loc[quesinfo['code']==1,'codename']='是' 
+    quesinfo['tmp']=quesinfo['qnum']+quesinfo['code'].map(lambda x:'_%s'%int(x)) 
+    quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='矩阵单选题'),'tmp']\
+    .map(lambda x: code[x.split('_')[0]]['code'][int(x.split('_')[1])]))    
+    quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='排序题'),'tmp'].map(lambda x: 'Top{}'.format(x.split('_')[1])))
+    if quesid:    
+        quesinfo['quesid']=quesid
+        quesinfo=quesinfo[['quesid','qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+    else:
+        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+    # 排序
+    quesinfo['qnum']=quesinfo['qnum'].astype('category')
+    quesinfo['qnum'].cat.set_categories(sorted(list(quesinfo['qnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
+    quesinfo['itemnum']=quesinfo['itemnum'].astype('category')
+    quesinfo['itemnum'].cat.set_categories(sorted(list(quesinfo['itemnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
+    quesinfo=quesinfo.sort_values(['qnum','itemnum','code'])
+    return qdata,quesinfo
+
+
 
 
 def confidence_interval(p,n,alpha=0.05):
@@ -1457,6 +1545,101 @@ def mca(X,N=2):
     pc.to_excel(w,startrow=len(pr)+2,index_label=True)
     w.save()
     '''
+
+def cluster(data,code,cluster_qq):
+    '''对态度题进行聚类
+    '''
+    
+    from sklearn.cluster import KMeans
+    #from sklearn.decomposition import PCA
+    from sklearn import metrics
+    #import prince
+    #cluster_qq='Q23'
+    qq_max=sorted(code,key=lambda x:int(re.findall('\d+',x)[0]))[-1]
+    new_cluster='Q{}'.format(int(re.findall('\d+',qq_max)[0])+1)
+    #new_cluster='Q32'   
+    
+    qlist=code[cluster_qq]['qlist']
+    X=data[qlist]
+    # 去除所有态度题选择的分数都一样的用户（含仅有两个不同）
+    std_t=min(1.41/np.sqrt(len(qlist)),0.40) if len(qlist)>=8 else 0.10 
+    X=X[X.T.std()>std_t]
+    index_bk=X.index#备份，方便还原
+    X.fillna(0,inplace=True)
+    X1=X.T
+    X1=(X1-X1.mean())/X1.std()
+    X1=X1.T.as_matrix()
+  
+    
+    #聚类个数的选取和评估
+    silhouette_score=[]# 轮廊系数
+    SSE_score=[]
+    klist=np.arange(2,15)
+    for k in klist:
+        est = KMeans(k)  # 4 clusters
+        est.fit(X1)
+        tmp=np.sum((X1-est.cluster_centers_[est.labels_])**2)
+        SSE_score.append(tmp)    
+        tmp=metrics.silhouette_score(X1, est.labels_)
+        silhouette_score.append(tmp)
+    '''
+    fig = plt.figure(1)
+    ax = fig.add_subplot(111)
+    fig = plt.figure(2)
+    ax.plot(klist,np.array(silhouette_score))
+    ax = fig.add_subplot(111)
+    ax.plot(klist,np.array(SSE_score))
+    '''
+    # 找轮廊系数的拐点     
+    ss=np.array(silhouette_score)
+    t1=[False]+list(ss[1:]>ss[:-1])
+    t2=list(ss[:-1]>ss[1:])+[False]
+    k_log=[t1[i]&t2[i] for i in range(len(t1))]
+    if True in k_log:
+        k=k_log.index(True)
+    else:
+        k=1
+    k=k if k<=5 else 5# 限制最多分7类
+    k_best=klist[k]   
+    
+    est = KMeans(k_best)  # 4 clusters
+    est.fit(X1)    
+    
+    # 系数计算
+    SSE=np.sqrt(np.sum((X1-est.cluster_centers_[est.labels_])**2)/len(X1))
+    silhouette_score=metrics.silhouette_score(X1, est.labels_)
+    
+    print('有效样本数:{},特征数：{},最佳分类个数：{} 类'.format(len(X1),len(qlist),k_best))
+    print('SSE(样本到所在类的质心的距离)为：{:.2f},轮廊系数为: {:.2f}'.format(SSE,silhouette_score))
+    '''
+    # 绘制降维图
+    fig = plt.figure(3)
+    X_PCA = PCA(3).fit_transform(X1)
+    kwargs = dict(cmap = plt.cm.get_cmap('rainbow', 10),
+                  edgecolor='none', alpha=0.6)
+    labels=pd.Series(est.labels_)
+    plt.scatter(X_PCA[:, 0], X_PCA[:, 1], c=labels, **kwargs)
+    # 三维立体图
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(X_PCA[:, 0], X_PCA[:, 1],X_PCA[:, 2], c=labels, **kwargs)
+    '''   
+    
+    # 导出到原数据
+    data[new_cluster]=pd.Series(est.labels_,index=index_bk)
+    code[new_cluster]={'content':'态度题聚类结果','qtype':'单选题','qlist':[new_cluster],
+        'code':dict(zip(range(k_best),['cluster{}'.format(i+1) for i in range(k_best)]))}
+    print('结果已经存进数据, 题号为：{}'.format(new_cluster))
+    return data,code
+    '''
+    # 对应分析
+    t=data.groupby([new_cluster])[code[cluster_qq]['qlist']].mean()
+    t.columns=['R{}'.format(i+1) for i in range(len(code[cluster_qq]['qlist']))]
+    t=t.rename(index=code[new_cluster]['code'])
+    ca=prince.CA(t)
+    ca.plot_rows_columns(show_row_labels=True,show_column_labels=True)
+    '''
+
 
 
 def scatter(data,legend=False,title=None):
