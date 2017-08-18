@@ -1355,15 +1355,24 @@ def qdata_flatten(data,code,quesid=None,userid_begin=None):
     qnum: 题号
     qname: 题目内容
     qtype: 题目类型
+    samplelen:题目的样本数
     itemnum: 选项序号
     itemname: 选项内容
     code: 用户的选择
-    codename: 用户选择的具体值    
+    codename: 用户选择的具体值
+    count: 计数
+    percent(%): 计数占比（百分比）    
     '''
 
     if not userid_begin:
         userid_begin=1000000
     data.index=[userid_begin+i+1 for i in range(len(data))]
+    if '提交答卷时间' in data.columns:
+        begin_date=pd.to_datetime(data['提交答卷时间']).min().strftime('%Y-%m-%d')
+        end_date=pd.to_datetime(data['提交答卷时间']).max().strftime('%Y-%m-%d')
+    else:
+        begin_date=''
+        end_date=''
     data,code=to_dummpy(data,code,qtype_new='单选题')
     code_item={}
     for qq in code:
@@ -1407,11 +1416,14 @@ def qdata_flatten(data,code,quesid=None,userid_begin=None):
     quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='矩阵单选题'),'tmp']\
     .map(lambda x: code[x.split('_')[0]]['code'][int(x.split('_')[1])]))    
     quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='排序题'),'tmp'].map(lambda x: 'Top{}'.format(x.split('_')[1])))
+    quesinfo['begin_date']=begin_date
+    quesinfo['end_date']=end_date        
     if quesid:    
         quesinfo['quesid']=quesid
-        quesinfo=quesinfo[['quesid','qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+        quesinfo=quesinfo[['quesid','begin_date','end_date','qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
     else:
-        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]    
+        
     # 排序
     quesinfo['qnum']=quesinfo['qnum'].astype('category')
     quesinfo['qnum'].cat.set_categories(sorted(list(quesinfo['qnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
