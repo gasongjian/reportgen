@@ -383,11 +383,21 @@ while 1:
 
         if command == '6':
             try:
-                rpt.save_data(data)
-                rpt.save_code(code)
+                filename_data=input('请输入文件名用于存储data(缺省为data): ')
+                if len(filename_data)==0:
+                    filename_data='data.xlsx'
+                else:
+                    filename_data=filename_data+'.xlsx'
+                rpt.save_data(data,filename_data)
+                filename_code=input('请输入文件名用于存储code(缺省为code): ')
+                if len(filename_code)==0:
+                    filename_code='code.xlsx'
+                else:
+                    filename_code=filename_code+'.xlsx'
+                rpt.save_code(code,filename_code)
                 print('数据已经保存在本地')
             except :
-                print('请关闭已经打开的文件：data.xlsx 或者 code.xlsx')
+                print('请关闭已经打开的文件：{} 或者 {}'.format(filename_data,filename_code))
                 print('关闭后返回重新选择')
                 pass
             continue
