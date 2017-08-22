@@ -195,25 +195,214 @@ os.system('pause')
 
 
 s='''
-==========二、数据预处理=======
+==========二、数据处理=======
 1. 编码后的数据中，data.xlsx用于存放所有按序号数据，code.xlsx用于存放序号对应的文本内容以及报告生成所需变量
 
 2. code中key[必须]：题号，content[必须]:题目内容，qtype[必须]:题目类型，qlist[必须]：题目在data.xlsx对应的位置，code_order:用于固定报告中选项的顺序,weight:用于求加权平均值，如NPS、满意度、模块满意度等.
 
-3. 本脚本不提供数据处理操作，因为没有界面体验很不好.大家可以在本地处理好数据后，重新导入编码后并修改好的数据。在这个过程中，如果涉及到选项序号的合并、修改等，请同步修改data和code两个文件，谢谢.
+3. 本脚本只提供简单的数据处理操作，因为没有界面体验很不好.大家可以在本地处理好数据后，重新导入编码后并修改好的数据。在这个过程中，如果涉及到选项序号的合并、修改等，请同步修改data和code两个文件，谢谢.
 
 4. 如果需要修改数据，可以输入exit或者quit暂时退出本脚本，等数据修改完后再启动.
 --------------------------------
 '''
 print(s)
-command=input('请输入(按任意键跳转到第三步：报告生成)：')
+
+command=input('按任意键进入[第二步：数据处理：]')
 
 if command in ['0','exit','quit']:
     print('本工具包由JSong开发, 谢谢使用, 再见..')
     exit()
 
 
-#=======================================================================
+    
+while 1:
+    print('=' * 70)
+    try:
+        command = input('''
+==========二、数据处理=======.
+1. 数据筛选
+2. 选项合并/修改
+3. 态度题聚类分析
+4. 因子分析（暂缺）
+5. 特征工程（暂缺）
+6. 将修改后的数据保存到本地（data.xlsx和code.xlsx）
+7. 跳转到下一步
+0. 退出程序(也可以输入exit或者quit)
+请输入相应的序号:
+''')
+
+        if command in ['0','exit','quit']:
+            print('本工具包由JSong开发, 谢谢使用, 再见..')
+            break
+        if command == '1':
+            qq=input('请输入您需要进行[数据筛选]的题号(如Q1): ')
+            qq=qq.upper()
+            if qq in code:
+                print('您输入的是%s: %s'%(qq,code[qq]['content']))
+            else:
+                print('没有找到您输入的题目,请返回重新输入.')
+                continue
+            print('\n该题的选项如下：')
+            if code[qq]['qtype']=='单选题':
+                for c,cvalue in code[qq]['code'].items():
+                    print('  {}: {}'.format(c,cvalue))
+                qlist=input('\n 请选择需要保留的选项（多个请用英文逗号分隔,如：1,2,5): ')
+                if len(qlist)==0:
+                    print('没有找到您输入的选项，请返回重新输入.')
+                    continue
+                qlist=re.sub('\s','',qlist)# 去掉空格
+                qlist=re.sub('，',',',qlist)# 修正可能错误的逗号
+                qlist=qlist.split(',')
+                qlist=[int(qq) for qq in qlist]# 完善后的选项
+                if not(set(qlist) < set(code['Q1']['code'].keys())):
+                    print('您输入的选项与该题选项不匹配，请返回重新检查.')
+                    continue
+                data=data[data[code[qq]['qlist'][0]].isin(qlist)]
+                code[qq]['code']={q:code[qq]['code'][q] for q in qlist}
+                print('{}的筛选操作已完成.'.format(qq))
+            elif code[qq]['qtype'] in ['多选题','排序题']:
+                codeitems=list(code[qq]['code'].items())
+                for ii in range(len(codeitems)):
+                    print('  {}: {}'.format(ii+1,codeitems[ii][1]))
+                qlist=input('\n 请选择需要保留的选项（多个请用英文逗号分隔,如：1,2,5): ')
+                if len(qlist)==0:
+                    print('没有找到您输入的选项，请返回重新输入.')
+                    continue
+                qlist=re.sub('\s','',qlist)# 去掉空格
+                qlist=re.sub('，',',',qlist)# 修正可能错误的逗号
+                qlist=qlist.split(',')
+                qlist=[int(qq)-1 for qq in qlist]
+                if not(set(qlist) < set(range(len(codeitems)))):
+                    print('您输入的选项与该题选项不匹配，请返回重新检查.')
+                    continue
+                removelist=list(set(range(len(codeitems)))-set(qlist))#需要移除的选项
+                removelist=[codeitems[i][0] for i in removelist]
+                data=data.drop(removelist,axis=1)
+                for c in removelist:
+                    del code[qq]['code'][c]
+                remainlist=[codeitems[i][0] for i in qlist]
+                code[qq]['qlist']=[q for q in code[qq]['qlist'] if q in remainlist]
+                print('{}的筛选操作已完成.'.format(qq))
+            else:
+                print('只支持筛选单选题、多选题、排序题，请返回重新选择.')
+                continue
+            continue
+        if command == '2': 
+            qq=input('请输入您需要进行[合并选项]的题号(如Q1): ')
+            qq=qq.upper()
+            if (qq in code) and (code[qq]['qtype']=='单选题'):
+                print('您输入的是%s: %s'%(qq,code[qq]['content']))
+            else:
+                print('没有找到您输入的题目或者输入的不是单选题,请返回重新输入.')
+                continue
+            print('\n该题的选项如下：')
+            for c,cvalue in code[qq]['code'].items():
+                print('  {}: {}'.format(c,cvalue))
+            print('\n您可以多次合并，直到所有选项都完成合并.在这个过程中，只要不输入并按回车键即可退出合并操作.\n')
+            itemlist=[]# 记录合并前选项
+            itemlist_new=[]# 记录合并后的选项
+            itemname=[]# 记录合并后的选项名称
+            while 1:
+                itemlist0=input('请输入需要合并的选项(如:1,2): ')
+                if len(itemlist0)==0:
+                    break
+                itemlist0=re.sub('\s','',itemlist0)# 去掉空格
+                itemlist0=re.sub('，',',',itemlist0)# 修正可能错误的逗号
+                itemlist0=itemlist0.split(',')
+                itemlist0=[int(qq) for qq in itemlist0]
+                itemname0=input('请输入合并后的新名称(不能和已有的名称重复): ')
+                if len(itemname0)==0:
+                    print('输入有误，请返回重新输入')
+                    continue
+                if itemname0 in code[qq]['code'].values():
+                    print('和已有名称重复，请返回重新输入')
+                    continue
+                itemname0=itemname0.strip()
+                itemlist=itemlist+itemlist0
+                itemlist_new=itemlist_new+[itemlist0[0]]*len(itemlist0)                
+                itemname=itemname+[itemname0]*len(itemlist0)
+            # 替换data
+            rcode=dict(zip(itemlist,itemlist_new))# 用户替换data
+            data[code[qq]['qlist'][0]].replace(rcode,inplace=True)
+            # 修改code
+            additem=list(set(code[qq]['code'].keys())-set(itemlist))
+            addname=[code[qq]['code'][c] for c in additem]
+            code[qq]['code']=dict(zip(itemlist_new+additem,itemname+addname))
+            print('{}的合并操作已完成.'.format(qq))
+            continue
+            
+        if command == '3':
+            s='''本脚本支持对态度题（题型为矩阵单选题）进行聚类分析，相关说明如下：
+题型要求：矩阵单选题（量表题）
+数据清洗：剔除了那些各选项的分值都几乎一样的样本
+采用方法：K-means
+最佳聚类数：根据轮廊系数自动选取，上限为7类')
+结果说明：结果具有一定的随机性，仅供参考，另外可多次运行获取相对稳定的结论.
+                    
+            '''
+            print(s)
+            qq=input('请输入您需要进行[聚类分析]的题号(如Q1): ')
+            qq=qq.upper()
+            if (qq in code) and (code[qq]['qtype']=='矩阵单选题'):
+                print('您输入的是%s: %s'%(qq,code[qq]['content']))
+            else:
+                print('您输入的题型不是矩阵单选题,请返回重新输入.')
+                continue
+            n_clusters=input('请输入分类个数(缺省则自动选择最佳聚类数): ')
+            n_clusters=re.sub('\s','',n_clusters)# 去掉空格
+            if len(n_clusters)==0:
+                n_clusters='auto'
+            else:
+                n_clusters=int(n_clusters)
+            data,code,para=rpt.cluster(data,code,qq,n_clusters=n_clusters)
+            # 绘图
+            from sklearn.decomposition import PCA
+            import matplotlib.pyplot as plt
+            X=para['data']
+            labels=para['labels']
+            X_PCA = PCA(2).fit_transform(X)
+            kwargs = dict(cmap = plt.cm.get_cmap('rainbow', 10),
+                          edgecolor='none', alpha=0.6)
+            plt.figure()
+            plt.scatter(X_PCA[:, 0], X_PCA[:, 1], c=labels, **kwargs)
+            filename='cluster_kmeans_{}_{}_pca.png'.format(qq,para[n_clusters])
+            plt.savefig(filename,dpi=1200)
+            print('聚类效果图已保存在本地：{}'.format(filename))
+            try:
+                from PIL import Image
+                img=Image.open(filename)
+                img.show()
+            except:
+                pass
+            continue
+
+        if command in ['4','5']:
+            print('敬请期待.....')
+            continue
+
+
+        if command == '6':
+            try:
+                rpt.save_data(data)
+                rpt.save_code(code)
+                print('数据已经保存在本地')
+            except :
+                print('请关闭已经打开的文件：data.xlsx 或者 code.xlsx')
+                print('关闭后返回重新选择')
+                pass
+            continue
+
+        if command == '7':
+            break
+            
+    except Exception as e:
+        print(e)
+        print('错误..')
+
+#================三、数据预处理==============
+#
+#
+#==========================================
 while 1:
     print('=' * 70)
     try:
@@ -368,8 +557,8 @@ x. 全自动一键生成
     except Exception as e:
         print(e)
         print('错误..')
-      
-       
+        
+        
         
 
        
