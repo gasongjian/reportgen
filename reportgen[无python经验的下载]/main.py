@@ -90,10 +90,10 @@ while 1:
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
                 time.sleep(0.1)
-            rpt.save_code(code,'code.xlsx')
-            rpt.save_data(data,'data.xlsx')
-            rpt.save_data(data,'data_readable.xlsx',code)
-            print('\n编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
+            rpt.save_code(code,'.\\data\\code.xlsx')
+            rpt.save_data(data,'.\\data\\data.xlsx')
+            rpt.save_data(data,'.\\data\\data_readable.xlsx',code)
+            print('\n编码完毕, 编码后的数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
             break
         if command=='2':
             print('准备导入问卷网数据，请确保“.\data\”文件夹下有按序号、按文本和code数据.')
@@ -108,15 +108,15 @@ while 1:
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
                 time.sleep(0.1)
-            rpt.save_code(code,'code.xlsx')
-            rpt.save_data(data,'data.xlsx')
-            rpt.save_data(data,'data_readable.xlsx',code)
-            print('编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
+            rpt.save_code(code,'.\\data\\code.xlsx')
+            rpt.save_data(data,'.\\data\\data.xlsx')
+            rpt.save_data(data,'.\\data\\data_readable.xlsx',code)
+            print('\n编码完毕, 编码后的数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
             break               
         if command=='3':
-            data_name=input('请输入数据的文件名，缺省为 data.xlsx. 请输入:')
+            data_name=input('请输入数据的文件名(包含路径)，缺省为 .\\data\\data.xlsx. 请输入:')
             if not data_name:
-                data_name='data.xlsx'
+                data_name='.\\data\\data.xlsx'
             try:
                 data=rpt.read_data(data_name)
                 print('已成功导入data.')
@@ -124,9 +124,9 @@ while 1:
                 print(e)
                 print('data导入失败, 请检查')
                 continue
-            code_name=input('请输入code的文件名，缺省为 code.xlsx. 请输入:')
+            code_name=input('请输入code的文件名(包含路径)，缺省为 .\\data\\code.xlsx. 请输入:')
             if not code_name:
-                code_name='code.xlsx'
+                code_name='.\\data\\code.xlsx'
             try:
                 code=rpt.read_code(code_name)
                 print('已成功导入code.')
@@ -142,6 +142,9 @@ while 1:
             break
 
         if command=='4':
+            '''
+            待完善，还必须支持data、code文件
+            '''            
             import tkinter as tk
             from tkinter.filedialog import askopenfilenames
             tk.Tk().withdraw();
@@ -181,10 +184,10 @@ while 1:
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
                 time.sleep(0.1)
-            rpt.save_code(code,'code.xlsx')
-            rpt.save_data(data,'data.xlsx')
-            rpt.save_data(data,'data_readable.xlsx',code)
-            print('\n编码完毕, 编码后的数据已经保存在本地为data.xlsx和code.xlsx. \n')
+            rpt.save_code(code,'.\\data\\code.xlsx')
+            rpt.save_data(data,'.\\data\\data.xlsx')
+            rpt.save_data(data,'.\\data\\data_readable.xlsx',code)
+            print('\n编码完毕, 编码后的数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
             break            
 
     except Exception as e:
@@ -193,25 +196,6 @@ while 1:
 
 os.system('pause')
 
-
-s='''
-==========二、数据处理=======
-1. 编码后的数据中，data.xlsx用于存放所有按序号数据，code.xlsx用于存放序号对应的文本内容以及报告生成所需变量
-
-2. code中key[必须]：题号，content[必须]:题目内容，qtype[必须]:题目类型，qlist[必须]：题目在data.xlsx对应的位置，code_order:用于固定报告中选项的顺序,weight:用于求加权平均值，如NPS、满意度、模块满意度等.
-
-3. 本脚本只提供简单的数据处理操作，因为没有界面体验很不好.大家可以在本地处理好数据后，重新导入编码后并修改好的数据。在这个过程中，如果涉及到选项序号的合并、修改等，请同步修改data和code两个文件，谢谢.
-
-4. 如果需要修改数据，可以输入exit或者quit暂时退出本脚本，等数据修改完后再启动.
---------------------------------
-'''
-print(s)
-
-command=input('按任意键进入[第二步：数据处理：]')
-
-if command in ['0','exit','quit']:
-    print('本工具包由JSong开发, 谢谢使用, 再见..')
-    exit()
 
 
     
@@ -222,12 +206,13 @@ while 1:
 ==========二、数据处理=======.
 1. 数据筛选
 2. 选项合并/修改
-3. 态度题聚类分析
-4. 因子分析（暂缺）
-5. 特征工程（暂缺）
-6. 将修改后的数据保存到本地（data.xlsx和code.xlsx）
-7. 跳转到下一步
-0. 退出程序(也可以输入exit或者quit)
+3. 变量合并（如将性别和年龄合并成一个变量）
+4. 态度题聚类分析
+5. 因子分析（暂缺）
+6. 特征工程（暂缺）
+7. 将修改后的数据保存到本地（data.xlsx和code.xlsx）
+8. 将数据展平(易于存储在数据库中)
+0. 跳转到下一步
 请输入相应的序号:
 ''')
 
@@ -244,8 +229,8 @@ while 1:
                 continue
             print('\n该题的选项如下：')
             if code[qq]['qtype']=='单选题':
-                for c,cvalue in code[qq]['code'].items():
-                    print('  {}: {}'.format(c,cvalue))
+                for c in sorted(code[qq]['code']):
+                    print('  {}: {}'.format(c,code[qq]['code'][c]))
                 qlist=input('\n 请选择需要保留的选项（多个请用英文逗号分隔,如：1,2,5): ')
                 if len(qlist)==0:
                     print('没有找到您输入的选项，请返回重新输入.')
@@ -262,6 +247,7 @@ while 1:
                 print('{}的筛选操作已完成.'.format(qq))
             elif code[qq]['qtype'] in ['多选题','排序题']:
                 codeitems=list(code[qq]['code'].items())
+                codeitems=sorted(codeitems,key=lambda x:int(re.findall('\d+',x[0])[-1]))
                 for ii in range(len(codeitems)):
                     print('  {}: {}'.format(ii+1,codeitems[ii][1]))
                 qlist=input('\n 请选择需要保留的选项（多个请用英文逗号分隔,如：1,2,5): ')
@@ -296,8 +282,8 @@ while 1:
                 print('没有找到您输入的题目或者输入的不是单选题,请返回重新输入.')
                 continue
             print('\n该题的选项如下：')
-            for c,cvalue in code[qq]['code'].items():
-                print('  {}: {}'.format(c,cvalue))
+            for c in sorted(code[qq]['code']):
+                print('  {}: {}'.format(c,code[qq]['code'][c]))
             print('\n您可以多次合并，直到所有选项都完成合并.在这个过程中，只要不输入并按回车键即可退出合并操作.\n')
             itemlist=[]# 记录合并前选项
             itemlist_new=[]# 记录合并后的选项
@@ -319,7 +305,7 @@ while 1:
                     continue
                 itemname0=itemname0.strip()
                 itemlist=itemlist+itemlist0
-                itemlist_new=itemlist_new+[itemlist0[0]]*len(itemlist0)                
+                itemlist_new=itemlist_new+[itemlist0[0]]*len(itemlist0)
                 itemname=itemname+[itemname0]*len(itemlist0)
             # 替换data
             rcode=dict(zip(itemlist,itemlist_new))# 用户替换data
@@ -330,8 +316,36 @@ while 1:
             code[qq]['code']=dict(zip(itemlist_new+additem,itemname+addname))
             print('{}的合并操作已完成.'.format(qq))
             continue
+
+        if command == '3': 
+            qqlist=input('请输入您需要合并的两个变量(如Q1,Q2): ')
+            qqlist=qqlist.upper()
+            qqlist=re.sub('\s','',qqlist)# 去掉空格
+            qqlist=re.sub('，',',',qqlist)# 修正可能错误的逗号
+            qqlist=qqlist.split(',')
+            if len(qqlist)<2:
+                print('没有检测到两个变量的题号，请返回重新选择')
+                continue
+            qq1=qqlist[0]
+            qq2=qqlist[1]
+            if (qq1 in code) and (qq2 in code) and (code[qq1]['qtype']=='单选题') and (code[qq2]['qtype']=='单选题'):
+                print('您输入的两个题目是：')
+                print('  {}: {}'.format(qq1,code[qq1]['content']))
+                print('  {}: {}'.format(qq2,code[qq2]['content']))
+            else:
+                print('没有找到您输入的题目或者输入的不是单选题,请返回重新输入.')
+                continue
+            if 'Q'==qq2[0]:
+                qnum_new=qq1+'_'+qq2[1:]
+            else:
+                qnum_new=qq1+'_'+qq2
+            try:
+                data,code=rpt.var_combine(data,code,qq1,qq2,qnum_new=qnum_new)
+            except :
+                print('无法完成合并操作,请检查数据或者程序.')
+            continue            
             
-        if command == '3':
+        if command == '4':
             s='''本脚本支持对态度题（题型为矩阵单选题）进行聚类分析，相关说明如下：
 题型要求：矩阵单选题（量表题）
 数据清洗：剔除了那些各选项的分值都几乎一样的样本
@@ -365,7 +379,7 @@ while 1:
                           edgecolor='none', alpha=0.6)
             plt.figure()
             plt.scatter(X_PCA[:, 0], X_PCA[:, 1], c=labels, **kwargs)
-            filename='cluster_kmeans_{}_{}_pca.png'.format(qq,para[n_clusters])
+            filename='.\\out\\cluster_kmeans_{}_{}_pca.png'.format(qq,para[n_clusters])
             plt.savefig(filename,dpi=1200)
             print('聚类效果图已保存在本地：{}'.format(filename))
             try:
@@ -376,24 +390,26 @@ while 1:
                 pass
             continue
 
-        if command in ['4','5']:
+        if command in ['5','6']:
             print('敬请期待.....')
             continue
 
 
-        if command == '6':
+        if command == '7':
             try:
                 filename_data=input('请输入文件名用于存储data(缺省为data): ')
                 if len(filename_data)==0:
                     filename_data='data.xlsx'
                 else:
                     filename_data=filename_data+'.xlsx'
+                filename_data='.\\data\\'+filename_data
                 rpt.save_data(data,filename_data)
                 filename_code=input('请输入文件名用于存储code(缺省为code): ')
                 if len(filename_code)==0:
                     filename_code='code.xlsx'
                 else:
-                    filename_code=filename_code+'.xlsx'
+                    filename_code=filename_code+'.xlsx'                
+                filename_code='.\\data\\'+filename_code
                 rpt.save_code(code,filename_code)
                 print('数据已经保存在本地')
             except :
@@ -402,7 +418,7 @@ while 1:
                 pass
             continue
 
-        if command == '7':
+        if command == '8':
             break
             
     except Exception as e:
@@ -497,6 +513,7 @@ x. 全自动一键生成
 
         if command=='4':
             qq1=input('请输入需要交叉分析的行变量，也是因变量(例如: Q1): ')
+            qq=qq.upper()
             if qq1 in code:
                 print('您输入的是%s: %s'%(qq1,code[qq1]['content']))
             else:
@@ -525,6 +542,7 @@ x. 全自动一键生成
                 continue
         if command=='5':
             qq1=input('请输入需要对应分析的行变量，也是因变量(例如: Q1): ')
+            qq=qq.upper()
             if qq1 in code:
                 print('您输入的是%s: %s'%(qq1,code[qq1]['content']))
             else:
@@ -544,7 +562,7 @@ x. 全自动一键生成
                 x,y,inertia=rpt.mca(t)
                 title=u'对应分析图(信息量为{:.1f}%)'.format(inertia[1]*100)
                 fig=rpt.scatter([x,y],title=title)
-                filename='ca_'+qq1+'_'+qq2
+                filename='.\\out\\ca_'+qq1+'_'+qq2
                 fig.savefig(filename+'.png',dpi=1200)
                 w=pd.ExcelWriter(filename+'.xlsx')
                 x.to_excel(w,startrow=0,index_label=True)
