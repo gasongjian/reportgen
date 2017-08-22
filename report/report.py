@@ -26,7 +26,9 @@ import time
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import config
+
 
 from pptx import Presentation
 from pptx.chart.data import ChartData,XyChartData,BubbleChartData
@@ -1558,15 +1560,14 @@ def mca(X,N=2):
     w.save()
     '''
 
-def cluster(data,code,cluster_qq):
+def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
     '''对态度题进行聚类
     '''
     
     from sklearn.cluster import KMeans
-    #from sklearn.decomposition import PCA
+    from sklearn.decomposition import PCA
     from sklearn import metrics
     #import prince
-    #cluster_qq='Q23'
     qq_max=sorted(code,key=lambda x:int(re.findall('\d+',x)[0]))[-1]
     new_cluster='Q{}'.format(int(re.findall('\d+',qq_max)[0])+1)
     #new_cluster='Q32'   
@@ -1583,39 +1584,42 @@ def cluster(data,code,cluster_qq):
     X1=X1.T.as_matrix()
   
     
-    #聚类个数的选取和评估
-    silhouette_score=[]# 轮廊系数
-    SSE_score=[]
-    klist=np.arange(2,15)
-    for k in klist:
-        est = KMeans(k)  # 4 clusters
-        est.fit(X1)
-        tmp=np.sum((X1-est.cluster_centers_[est.labels_])**2)
-        SSE_score.append(tmp)    
-        tmp=metrics.silhouette_score(X1, est.labels_)
-        silhouette_score.append(tmp)
-    '''
-    fig = plt.figure(1)
-    ax = fig.add_subplot(111)
-    fig = plt.figure(2)
-    ax.plot(klist,np.array(silhouette_score))
-    ax = fig.add_subplot(111)
-    ax.plot(klist,np.array(SSE_score))
-    '''
-    # 找轮廊系数的拐点     
-    ss=np.array(silhouette_score)
-    t1=[False]+list(ss[1:]>ss[:-1])
-    t2=list(ss[:-1]>ss[1:])+[False]
-    k_log=[t1[i]&t2[i] for i in range(len(t1))]
-    if True in k_log:
-        k=k_log.index(True)
+    if n_clusters == 'auto':
+        #聚类个数的选取和评估
+        silhouette_score=[]# 轮廊系数
+        SSE_score=[]
+        klist=np.arange(2,15)
+        for k in klist:
+            est = KMeans(k)  # 4 clusters
+            est.fit(X1)
+            tmp=np.sum((X1-est.cluster_centers_[est.labels_])**2)
+            SSE_score.append(tmp)    
+            tmp=metrics.silhouette_score(X1, est.labels_)
+            silhouette_score.append(tmp)
+        '''
+        fig = plt.figure(1)
+        ax = fig.add_subplot(111)
+        fig = plt.figure(2)
+        ax.plot(klist,np.array(silhouette_score))
+        ax = fig.add_subplot(111)
+        ax.plot(klist,np.array(SSE_score))
+        '''
+        # 找轮廊系数的拐点     
+        ss=np.array(silhouette_score)
+        t1=[False]+list(ss[1:]>ss[:-1])
+        t2=list(ss[:-1]>ss[1:])+[False]
+        k_log=[t1[i]&t2[i] for i in range(len(t1))]
+        if True in k_log:
+            k=k_log.index(True)
+        else:
+            k=1
+        k=k if k<=max_clusters-2 else max_clusters-2 # 限制最多分7类
+        k_best=klist[k]
     else:
-        k=1
-    k=k if k<=5 else 5# 限制最多分7类
-    k_best=klist[k]   
+        k_best=n_clusters
     
     est = KMeans(k_best)  # 4 clusters
-    est.fit(X1)    
+    est.fit(X1)
     
     # 系数计算
     SSE=np.sqrt(np.sum((X1-est.cluster_centers_[est.labels_])**2)/len(X1))
@@ -1623,14 +1627,18 @@ def cluster(data,code,cluster_qq):
     
     print('有效样本数:{},特征数：{},最佳分类个数：{} 类'.format(len(X1),len(qlist),k_best))
     print('SSE(样本到所在类的质心的距离)为：{:.2f},轮廊系数为: {:.2f}'.format(SSE,silhouette_score))
-    '''
+    
     # 绘制降维图
-    fig = plt.figure(3)
-    X_PCA = PCA(3).fit_transform(X1)
+    '''
+    X_PCA = PCA(2).fit_transform(X1)
     kwargs = dict(cmap = plt.cm.get_cmap('rainbow', 10),
                   edgecolor='none', alpha=0.6)
     labels=pd.Series(est.labels_)
+    plt.figure()
     plt.scatter(X_PCA[:, 0], X_PCA[:, 1], c=labels, **kwargs)
+    '''
+
+    '''
     # 三维立体图
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -1638,11 +1646,14 @@ def cluster(data,code,cluster_qq):
     '''   
     
     # 导出到原数据
+    parameters={'methods':'kmeans','inertia':est.inertia_,'SSE':SSE,'silhouette':silhouette_score,\
+      'n_clusters':k_best,'n_features':len(qlist),'n_samples':len(X1),'qnum':new_cluster,\
+       'data':X1,'labels':est.labels_}
     data[new_cluster]=pd.Series(est.labels_,index=index_bk)
     code[new_cluster]={'content':'态度题聚类结果','qtype':'单选题','qlist':[new_cluster],
         'code':dict(zip(range(k_best),['cluster{}'.format(i+1) for i in range(k_best)]))}
     print('结果已经存进数据, 题号为：{}'.format(new_cluster))
-    return data,code
+    return data,code,parameters
     '''
     # 对应分析
     t=data.groupby([new_cluster])[code[cluster_qq]['qlist']].mean()
