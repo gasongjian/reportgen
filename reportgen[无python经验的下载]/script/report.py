@@ -242,7 +242,11 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     title_only_slide = prs.slide_masters[layouts[0]].slide_layouts[layouts[1]]
     slide = prs.slides.add_slide(title_only_slide)
     # 添加标题 title=u'这里是标题'
-    slide.shapes.title.text = title
+    try:
+        slide.shapes.title.text = title
+    except:
+        print('请检查模板,脚本没有找到合适的slide')
+        return
     # 添加结论 summary=u'这里是一些简短的结论'
     #summary_loc=[0.10,0.14,0.80,0.15]
     left,top = Emu(config.summary_loc[0]*slide_width), Emu(config.summary_loc[1]*slide_height)
@@ -398,24 +402,26 @@ def pptx_layouts(prs):
     #blank_slide=[]
     for i in range(len(prs.slide_masters)):
         slides=prs.slide_masters[i]
-        #print('第{}个有{}个版式'.format(i,m1))
+        print('第{}个有{}个版式'.format(i,len(slides.slide_layouts)))
         for j in range(len(slides.slide_layouts)):
             slide=slides.slide_layouts[j]
             title_slide=0
             placeholder_size=0
             for k in range(len(slide.shapes)):
                 shape=slide.shapes[k]
-                if shape.is_placeholder and shape.has_text_frame:
-                    placeholder_size+=1
+                if shape.is_placeholder and shape.has_text_frame:                    
                     left,top=shape.left/slide_width,shape.top/slide_height                   
-                    height=shape.height/slide_height                
+                    height=shape.height/slide_height
+                    if left<1 and top<1 and height<1 and left>0 and top>0 and height>0:
+                        placeholder_size+=1
+                    print('left={:.2f},top={:.2f},height={:.2f}'.format(left,top,height))
                     if left<0.15 and top<0.15 and height <0.25:
                         title_slide+=1
-            #print('{}个占位符,{}个title'.format(placeholder_size,title_slide))
+            print('{}个文本占位符,{}个title'.format(placeholder_size,title_slide))
             if placeholder_size==1 and title_slide==1:
                 title_only_slide.append([i,j])
             #if placeholder_size==0:
-                #blank_slide.append((i,j))
+                #blank_slide.append((i,j))s
     return title_only_slide
 
 '''
@@ -771,6 +777,47 @@ def dataCode_to_text(df,code=None):
             df.loc[i,'text']=sep.join(list(w.index))
     df.drop(qlist,axis=1,inplace=True)
     return df
+
+def var_combine(data,code,qq1,qq2,sep=',',qnum_new=None,qname_new=None):
+    '''将两个变量组合成一个变量
+    例如：
+    Q1:'性别',Q2: 年龄
+    组合后生成：
+    1、男_16~19岁
+    2、男_20岁~40岁
+    3、女_16~19岁
+    4、女_20~40岁
+    '''
+    if qnum_new is None:
+        if 'Q'==qq2[0]:
+            qnum_new=qq1+'_'+qq2[1:]
+        else:
+            qnum_new=qq1+'_'+qq2
+    if qname_new is None:
+        qname_new=code[qq1]['content']+'_'+code[qq2]['content']
+    
+    if code[qq1]['qtype']!='单选题' or code[qq2]['qtype']!='单选题':
+        print('只支持组合两个单选题，请检查.')
+        raise
+    d1=data[code[qq1]['qlist'][0]]
+    d2=data[code[qq2]['qlist'][0]]
+    sm=max(code[qq1]['code'].keys())#  进位制
+    sn=max(code[qq2]['code'].keys())# 进位制
+    if isinstance(sm,str) or isinstance(sn,str):
+        print('所选择的两个变量不符合函数要求.')
+        raise
+    data[qnum_new]=(d1-1)*sn+d2
+    code[qnum_new]={'qtype':'单选题','qlist':[qnum_new],'content':qname_new}    
+    
+    code_tmp={}
+    for c1 in code[qq1]['code']:
+        for c2 in code[qq2]['code']:
+            cc=(c1-1)*sn+c2
+            value='{}{}{}'.format(code[qq1]['code'][c1],sep,code[qq2]['code'][c2])
+            code_tmp[cc]=value
+    code[qnum_new]['code']=code_tmp
+    print('变量已合并，新变量题号为：{}'.format(qnum_new))
+    return data,code
 
 
 
@@ -1665,13 +1712,25 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
 
 
 
-def scatter(data,legend=False,title=None):
+def scatter(data,legend=False,title=None,font_ch=None):
     '''
     绘制带数据标签的散点图
     '''
-    import matplotlib.pyplot as plt
     import matplotlib.font_manager as fm
-    myfont = fm.FontProperties(fname='C:/Windows/Fonts/msyh.ttc')
+    if font_ch is None:
+        fontlist=['msyh.ttc','simsun.ttc','simhei.ttf','calibri.ttf']
+        myfont=''
+        for f in fontlist:
+            if os.path.exists(os.path.join('C:\\Windows\\Fonts',f)):
+                myfont=os.path.join('C:\\Windows\\Fonts',f)
+                break
+        if len(myfont)==0:
+            print('没有找到合适的中文字体绘图，请检查.')
+            myfont=None
+        else:
+            myfont = fm.FontProperties(fname=myfont)
+    else:
+        myfont=fm.FontProperties(fname=font_ch)
     fig, ax = plt.subplots()
     #ax.grid('on')
     ax.xaxis.set_ticks_position('none')
