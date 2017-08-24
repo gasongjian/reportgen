@@ -402,7 +402,7 @@ def pptx_layouts(prs):
     #blank_slide=[]
     for i in range(len(prs.slide_masters)):
         slides=prs.slide_masters[i]
-        print('第{}个有{}个版式'.format(i,len(slides.slide_layouts)))
+        #print('第{}个有{}个版式'.format(i,len(slides.slide_layouts)))
         for j in range(len(slides.slide_layouts)):
             slide=slides.slide_layouts[j]
             title_slide=0
@@ -414,10 +414,10 @@ def pptx_layouts(prs):
                     height=shape.height/slide_height
                     if left<1 and top<1 and height<1 and left>0 and top>0 and height>0:
                         placeholder_size+=1
-                    print('left={:.2f},top={:.2f},height={:.2f}'.format(left,top,height))
+                    #print('left={:.2f},top={:.2f},height={:.2f}'.format(left,top,height))
                     if left<0.15 and top<0.15 and height <0.25:
                         title_slide+=1
-            print('{}个文本占位符,{}个title'.format(placeholder_size,title_slide))
+            #print('{}个文本占位符,{}个title'.format(placeholder_size,title_slide))
             if placeholder_size==1 and title_slide==1:
                 title_only_slide.append([i,j])
             #if placeholder_size==0:
@@ -1194,6 +1194,36 @@ def spec_rcode(data,code):
 
 
 
+## ===========================================================
+#
+#
+#                     数据清洗                          #
+#
+#
+## ==========================================================
+
+
+
+
+def clean_ftime(ftime,cut_percent=0.25):
+    '''
+    ftime 是完成问卷的秒数
+    思路：
+    1、只考虑截断问卷完成时间较小的样本
+    2、找到完成时间变化的拐点，即需要截断的时间点
+    返回：r
+    建议截断<r的样本    
+    '''
+    t_min=int(ftime.min())      
+    t_cut=int(ftime.quantile(cut_percent))
+    x=np.array(range(t_min,t_cut))
+    y=np.array([len(ftime[ftime<=i]) for i in range(t_min,t_cut)])
+    z1 = np.polyfit(x, y, 4) # 拟合得到的函数
+    z2=np.polyder(z1,2) #求二阶导数
+    r=np.roots(np.polyder(z2,1))
+    r=int(r[0])
+    return r
+
 
 
 ## ===========================================================
@@ -1712,18 +1742,21 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
 
 
 
-def scatter(data,legend=False,title=None,font_ch=None):
+def scatter(data,legend=False,title=None,font_ch=None,find_path=None):
     '''
     绘制带数据标签的散点图
     '''
     import matplotlib.font_manager as fm
     if font_ch is None:
-        fontlist=['msyh.ttc','simsun.ttc','simhei.ttf','calibri.ttf']
+        fontlist=['calibri.ttf','simfang.ttf','simkai.ttf','simhei.ttf','simsun.ttc','msyh.ttf','msyh.ttc']
         myfont=''
-        for f in fontlist:
-            if os.path.exists(os.path.join('C:\\Windows\\Fonts',f)):
-                myfont=os.path.join('C:\\Windows\\Fonts',f)
-                break
+        if not find_path:
+            find_paths=['C:\\Windows\\Fonts','']
+        # fontlist 越靠后越优先，findpath越靠后越优先
+        for find_path in find_paths:
+            for f in fontlist:
+                if os.path.exists(os.path.join(find_path,f)):
+                    myfont=os.path.join(find_path,f)
         if len(myfont)==0:
             print('没有找到合适的中文字体绘图，请检查.')
             myfont=None
