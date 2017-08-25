@@ -1030,6 +1030,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                     d1[current_name]=d1[current_name].map(lambda x: re.sub('〖.*?〗','',x))
                     #c1=d1.loc[ind,current_name].map(lambda x: re.sub('〖.*?〗','',x)).unique()
                     code[current_name]['qlist_open']=[current_name+'_open']
+                #c2_tmp=d2.loc[ind,current_name].map(lambda x: int(x) if (('%s'%x!='nan') and not(isinstance(x,str)) and (int(x)==x)) else x)
                 code[current_name]['code']=dict(zip(d2.loc[ind,current_name],d1.loc[ind,current_name]))
                 #code[current_name]['code']=dict(zip(c2,c1))
     
@@ -1040,6 +1041,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 j=1#记录多选题的小题号
                 current_name=name0
                 c2=list(d2[name].unique())
+
                 if code[current_name]['qtype'] == u'矩阵单选题':
                     name1='Q'+tmp2[0]+'_R%s'%j
                     c1=list(d1[name1].unique())
