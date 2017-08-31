@@ -1140,6 +1140,125 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     return (d2,code)
 
 
+def load_data(method='filedialog',**kwargs):
+    '''导入问卷数据
+    # 暂时只支持已编码的和问卷星数据
+    1、支持路径搜寻
+    2、支持自由选择文件
+    method:
+        -filedialog: 打开文件窗口选择
+        -pathsearch：自带搜索路径，需提供filepath
+    '''
+    if method=='filedialog':
+        import tkinter as tk
+        from tkinter.filedialog import askopenfilenames
+        tk.Tk().withdraw();
+        #print(u'请选择编码所需要的数据文件（支持问卷星和已编码好的数据）') 
+        initialdir = ".\\data"
+        title =u"请选择编码所需要的数据文件（支持问卷星和已编码好的数据）"
+        filetypes = (("Excel files","*.xls;*.xlsx"),("CSV files","*.csv"),("all files","*.*"))
+        filenames=[]
+        while len(filenames)<1:
+            filenames=askopenfilenames(initialdir=initialdir,title=title,filetypes=filetypes)
+            if len(filenames)<1:
+                print('请至少选择一个文件.')
+        filenames=list(filenames)
+    elif method == 'pathsearch':
+        if 'filepath' in kwargs:
+            filepath=kwargs['filepath']
+        else :
+            filepath='.\\data\\'
+        if os.path.isdir(filepath):
+            filenames=os.listdir(filepath)
+            filenames=[os.path.join(filepath,s) for s in filenames]
+        else:
+            print('搜索路径错误')
+            raise
+    info=[]
+    for filename in filenames:
+        filename_nopath=os.path.split(filename)[1]
+        data=read_data(filename)
+        # 第一列包含的字段
+        field_c1=set(data.iloc[:,0].dropna().unique())
+        field_r1=set(data.columns)
+        # 列名是否包含Q
+        hqlen=[len(re.findall('^[qQ]\d+',c))>0 for c in field_r1]
+        hqrate=hqlen.count(True)/len(field_r1) if len(field_r1)>0 else 0
+        rowlens,collens=data.shape
+        # 数据中整数/浮点数的占比
+        rate_real=data.applymap(lambda x:isinstance(x,(int,float))).sum().sum()/rowlens/collens
+
+        tmp={'filename':filename_nopath,'filenametype':'','rowlens':rowlens,'collens':collens,\
+        'field_c1':field_c1,'field_r1':field_r1,'type':'','rate_real':rate_real}
+        
+        if len(re.findall('^data.*\.xls',filename_nopath))>0:
+            tmp['filenametype']='data'
+        elif len(re.findall('^code.*\.xls',filename_nopath))>0:
+            tmp['filenametype']='code'
+        elif len(re.findall('\d+_\d+_\d.xls',filename_nopath))>0:
+            tmp['filenametype']='wenjuanxing'
+
+        if tmp['filenametype']=='code' or set(['key','code','qlist','qtype']) < field_c1:
+            tmp['type']='code'
+        if tmp['filenametype']=='wenjuanxing' or len(set(['序号','提交答卷时间','所用时间','来自IP','来源','来源详情','总分'])&field_r1)>=5:
+            tmp['type']='wenjuanxing'
+        if tmp['filenametype']=='data' or hqrate>=0.5:
+            tmp['type']='data'
+        info.append(tmp)
+    questype=[k['type'] for k in info]
+    # 这里有一个优先级存在，优先使用已编码好的数据，其次是问卷星数据
+    if questype.count('data')*questype.count('code')==1:
+        data=read_data(filenames[questype.index('data')])
+        code=read_code(filenames[questype.index('code')])
+    elif questype.count('wenjuanxing')>=2:
+        filenames=[(f,info[i]['rate_real']) for i,f in enumerate(filenames) if questype[i]=='wenjuanxing']
+        tmp=[]
+        for f,rate_real in filenames:
+            t2=0 if rate_real<0.5 else 2
+            d=pd.read_excel(f)
+            d=d.iloc[:,0]
+            tmp.append((t2,d))
+            #print('添加{}'.format(t2))
+            tmp_equal=0
+            for t,d0 in tmp[:-1]:
+                if len(d)==len(d0)  and all(d==d0):
+                    tmp_equal+=1
+                    tmp[-1]=(t2+int(t/10)*10,tmp[-1][1])
+            max_quesnum=max([int(t/10) for t,d in tmp])
+            if tmp_equal==0:
+                tmp[-1]=(tmp[-1][0]+max_quesnum*10+10,tmp[-1][1])
+            #print('修改为{}'.format(tmp[-1][0]))
+        # 重新整理所有的问卷数据
+        questype=[t for t,d in tmp]
+        filenames=[f for f,r in filenames]
+        quesnums=max([int(t/10) for t in questype])#可能存在的数据组数
+        filename_wjx=[]
+        for i in range(1,quesnums+1):
+            if questype.count(i*10)==1 and questype.count(i*10+2)==1:
+                filename_wjx.append([filenames[questype.index(i*10)],filenames[questype.index(i*10+2)]])
+        if len(filename_wjx)==1:
+            data,code=wenjuanxing(filename_wjx[0])
+        elif len(filename_wjx)>1:
+            print('脚本识别出多组问卷星数据，请选择需要编码的数据：')
+            for i,f in enumerate(filename_wjx):
+                print('{}: {}'.format(i+1,'/'.join([os.path.split(f[0])[1],os.path.split(f[1])[1]])))
+            ii=input('您选择的数据是(数据前的编码，如：1):')
+            ii=re.sub('\s','',ii)
+            if ii.isnumeric():
+                data,code=wenjuanxing(filename_wjx[int(ii)-1])
+            else:
+                print('您输入正确的编码.')
+        else:
+            print('没有找到任何问卷数据..')
+            raise            
+    else:
+        print('没有找到任何数据')
+        raise              
+    return data,code
+
+
+
+
 def spec_rcode(data,code):
     city={'北京':0,'上海':0,'广州':0,'深圳':0,'成都':1,'杭州':1,'武汉':1,'天津':1,'南京':1,'重庆':1,'西安':1,'长沙':1,'青岛':1,'沈阳':1,'大连':1,'厦门':1,'苏州':1,'宁波':1,'无锡':1,\
     '福州':2,'合肥':2,'郑州':2,'哈尔滨':2,'佛山':2,'济南':2,'东莞':2,'昆明':2,'太原':2,'南昌':2,'南宁':2,'温州':2,'石家庄':2,'长春':2,'泉州':2,'贵阳':2,'常州':2,'珠海':2,'金华':2,\
