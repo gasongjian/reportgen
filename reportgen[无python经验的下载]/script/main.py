@@ -5,11 +5,11 @@ Created on Mon Apr  3 13:16:07 2017
 @author: gason
 """
 
-# -*- coding: utf-8 -*-
 
 import sys
 import os
 sys.path.append(os.path.join(os.path.split(__file__)[0],'script'))
+
 
 import re
 import time
@@ -23,6 +23,10 @@ mytemplate='template.pptx'
 
 print('=='*15+'[reportgen 工具包]'+'=='*15)
 
+
+
+
+
 #==================================================================
 while 1:
     #print('=' * 70)
@@ -32,64 +36,29 @@ while 1:
 1.导入问卷星数据并编码.
 2.导入问卷网数据并编码.
 3.导入已编码好的数据.
-4.打开文件选择窗口选择（问卷星数据）.
+4.打开文件窗口选择文件.
+5.合并两份问卷数据.
 请输入相应的序号: ''')
             
         if command in ['0','exit']:
             #print('开始下一步...')
             break
+
         if command=='1':
             print('准备导入问卷星数据，请确保“.\data\”文件夹下有按序号和按文本数据(如100_100_0.xls、100_100_2.xls).')
-            filepath='.\\data'
-            if os.path.isdir(filepath):
-                filelist=os.listdir(filepath)
-                wjx_data={}
-                n1=n2=0
-                for f in filelist:
-                    s1=re.findall('(\d+_\d+)_0.xls',f)
-                    s2=re.findall('(\d+_\d+)_2.xls',f)
-                    if s1:
-                        if s1[0] in wjx_data:
-                            wjx_data[s1[0]][0]=f
-                        else:
-                            wjx_data[s1[0]]=[f,'']
-                    if s2:
-                        if s2[0] in wjx_data:
-                            wjx_data[s2[0]][1]=f
-                        else:
-                            wjx_data[s2[0]]=['',f]
-                tmp=[k for k in wjx_data if int(len(wjx_data[k][0])>0)+int(len(wjx_data[k][1])>0)==2]
-                if len(tmp)==1:
-                    # 刚好只识别出一组问卷星数据
-                    filename1=os.path.join(filepath,tmp[0]+'_0.xls')
-                    filename2=os.path.join(filepath,tmp[0]+'_2.xls')
-                elif len(tmp)>1:
-                    print('脚本识别出多组问卷星数据，请选择需要编码的数据：')
-                    for i,k in enumerate(tmp):
-                        print('{i}:  {k}'.format(i=i+1,k=k+'_0.xls/'+k+'_2.xls'))
-                    ii=input('您选择的数据是(数据前的编码，如：1):')
-                    if ii.isnumeric():
-                        filename1=os.path.join(filepath,tmp[int(ii)-1]+'_0.xls')
-                        filename2=os.path.join(filepath,tmp[int(ii)-1]+'_2.xls')
-                    else:
-                        print('您输入正确的编码.')
-                        continue
-                else:
-                    print('在.\\data目录下没有找到任何的问卷星数据，请返回检查.')
-                    continue          
+            filepath='.\\data'            
             try:
-                data,code=rpt.wenjuanxing([filename1,filename2])
+                data,code=rpt.load_data(method='pathsearch',filepath=filepath)
                 data,code=rpt.spec_rcode(data,code)
             except Exception as e:
                 print(e)
                 print('问卷星数据导入失败, 请检查.')
-                continue
-            
+                continue           
             cross_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
             print('将题目进行编码......\n')
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
-                time.sleep(0.1)
+                time.sleep(0.05)
             print('-'*20+'题目数:{}个,样本数：{}个'.format(len(code),len(data))+'-'*20)
             print('正在将编码后的数据保存到本地.......')
             rpt.save_code(code,'.\\data\\code.xlsx')
@@ -97,6 +66,8 @@ while 1:
             rpt.save_data(data,'.\\data\\data_readable.xlsx',code)
             print('\n编码完毕, 编码后的数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
             break
+
+
         if command=='2':
             print('准备导入问卷网数据，请确保“.\data\”文件夹下有按序号、按文本和code数据.')
             try:
@@ -109,7 +80,7 @@ while 1:
             print('将题目进行编码......\n')
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
-                time.sleep(0.1)
+                time.sleep(0.05)
             print('-'*20+'题目数:{}个,样本数：{}个'.format(len(code),len(data))+'-'*20)
             print('正在将编码后的数据保存到本地.......')
             rpt.save_code(code,'.\\data\\code.xlsx')
@@ -146,63 +117,22 @@ while 1:
                 time.sleep(0.1)
             break
 
-        if command=='4':           
-            import tkinter as tk
-            from tkinter.filedialog import askopenfilenames
-            tk.Tk().withdraw();
-            print(u'请选择编码所需要的数据文件（支持问卷星和已编码好的数据）') 
-            initialdir = ".\\data"
-            title =u"请选择编码所需要的数据文件（支持问卷星和已编码好的数据）"
-            filetypes = (("Excel files","*.xls;*.xlsx"),("all files","*.*"))
-            filenames=[]
-            while len(filenames)!=2:
-                filenames=askopenfilenames(initialdir=initialdir,title=title,filetypes=filetypes)
-                if len(filenames)!=2:
-                    print('请重新选择，一共要选择两个文件.')
-            filenames=list(filenames)
-            dshape=[]
-            code_filepath=''
-            data_filepath=''
-            for filepath in filenames:
-                data=rpt.read_data(filepath)
-                if set(['key','code','qlist','qtype'])<set(data.iloc[:,0].dropna().unique()):
-                    code_filepath=filepath
-                m,n=data.shape
-                dshape=dshape+[m,n]
-            if code_filepath:
-                try:
-                    code=rpt.read_code(code_filepath)
-                    filenames.remove(code_filepath)
-                    data=rpt.read_data(filenames[0])
-                except Exception as e:
-                    print(e)
-                    print('data和code数据导入失败，请检查数据或者脚本.')
-                    continue
-            else:
-                if dshape[0]!=dshape[2]:
-                    print('选择的两组数据应该不是同一份问卷的，请返回检查.')
-                    continue
-                if dshape[1]>dshape[3]:
-                    filename1=filenames[1]
-                    filename2=filenames[0]
-                else:
-                    filename1=filenames[0]
-                    filename2=filenames[1]
-                # 识别完后开始编码    
-                try:
-                    data,code=rpt.wenjuanxing([filename1,filename2])
-                    data,code=rpt.spec_rcode(data,code)
-                except Exception as e:
-                    print(e)
-                    print('问卷星数据导入失败, 请检查.')
-                    continue
+        if command=='4':
+            try: 
+                data,code=rpt.load_data()
+            except:
+                print('问卷数据导入失败，请返回重新选择')
+                continue
             cross_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
             print('-'*20+'题目数:{}个,样本数：{}个'.format(len(code),len(data))+'-'*20)
             print('将题目进行编码......\n')
             for k in cross_qlist:
                 print('{key}:  {c}'.format(key=k,c=code[k]['content']))
-                time.sleep(0.1)
-            if not code_filepath:
+                time.sleep(0.05)
+            tmp=input('是否将编码后的数据保存到本地? 请输入y/n: ')
+            tmp=re.sub('\s','',tmp)
+            tmp=tmp.lower()
+            if tmp in ['y','yes']:
                 print('正在将编码后的数据保存到本地.......')
                 rpt.save_code(code,'.\\data\\code.xlsx')
                 rpt.save_data(data,'.\\data\\data.xlsx')
@@ -210,7 +140,52 @@ while 1:
                 print('\n编码完毕, 编码后的数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
             else :
                 print('\n 编码完毕....')
-            break            
+            break  
+
+
+        if command=='5':
+            print('请确保数据中没有内容和选项都完全相同的两道题目..')
+            print('请选择第一份数据（合并后的题目内容将以第一份为准）')
+            try:
+                data1,code1=rpt.load_data()
+            except:
+                print('导入失败')
+                continue
+            print('第一份数据已成功导入')
+            name1=input('请输入第一份数据的名称(用于合并后的来源区分,缺省为ques1): ')
+            name1=name1.strip()
+            if len(name1)==0:
+                name1='ques1'
+            os.system('pause')
+            print('请选择第二份数据...')
+            try:
+                data2,code2=rpt.load_data()
+            except:
+                print('导入失败')
+                continue
+            print('第二份数据已成功导入')
+            name2=input('请输入第二份数据的名称(用于合并后的来源区分,缺省为ques2): ')
+            name2=name2.strip()
+            if len(name2)==0:
+                name2='ques2'
+                
+            print('\n-----------开始合并-----------')
+            try:          
+                data,code=rpt.data_merge([data1,code1],[data2,code2],name1=name1,name2=name2)
+            except:
+                print('合并失败，请返回重新选择...')
+                continue
+            print('-------------完成合并-----------')
+            tmp=input('是否将合并后的数据保存到本地? 请输入y/n: ')
+            tmp=re.sub('\s','',tmp)
+            tmp=tmp.lower()
+            if tmp in ['y','yes']:
+                rpt.save_code(code,'.\\data\\code.xlsx')
+                rpt.save_data(data,'.\\data\\data.xlsx')
+                rpt.save_data(data,'.\\data\\data_readable.xlsx',code)
+                print('数据已经保存在本地为.\\data\\data.xlsx和.\\data\\code.xlsx. \n')
+            break
+
 
     except Exception as e:
         print(e)
@@ -251,8 +226,13 @@ while 1:
             print('题目内容是：{}'.format(code[qq]['content']))
             print('题目类型是：{}'.format(code[qq]['qtype']))
             print('题目选项有：')
+            t=rpt.qtable(data,code,qq)
             for c in sorted(code[qq]['code']):
-                print('    {}: {}'.format(c,code[qq]['code'][c]))
+                value=code[qq]['code'][c]               
+                c=int(c) if isinstance(c,(int,float)) else c                    
+                fop=100*t['fop'].fillna(0).loc[value,:][0]
+                fo=int(t['fo'].fillna(0).loc[value,:][0])
+                print('    {}: {} ({}/{:.0f}%)'.format(c,value,fo,fop))
             print('-'*(40+len(qq)))
             os.system('pause')
 
@@ -518,9 +498,8 @@ while 1:
 x. 全自动一键生成
 1. 整体统计报告自动生成
 2. 交叉分析报告自动生成
-3. 描述统计
-4. 交叉分析
-5. 对应分析
+3. 交叉分析
+4. 对应分析
 0. 退出程序(也可以输入exit或者quit)
 请输入相应的序号: ''')
         if command in ['x','X']:
@@ -566,31 +545,8 @@ x. 全自动一键生成
                 print(e)
                 print('报告生成过程出现错误，请重新检查数据和编码.')
                 continue                  
-        if command=='3':
-            qq=input('请输入需要统计的变量(例如: Q1): ')
-            qq=re.sub('^q','Q',qq)
-            if qq in code:
-                print('您输入的是%s: %s'%(qq,code[qq]['content']))
-            else:
-                print('没有找到您输入的题目,请返回重新输入.')
-                continue
-            if code[qq]['qtype'] not in ['单选题','多选题','排序题','矩阵单选题']:
-                print('您选择的题目类型本脚本暂时无法支持，请重新输入！')
-                continue
-            try:
-                t=rpt.qtable(data,code,qq)
-                if not(t['fo'] is None):
-                    print('百分比表如下：')
-                    print(t['fop'])
-                    print('--'*10)
-                    print('频数表如下:')
-                    print(t['fo'])
-            except Exception as e:
-                print(e)
-                print('脚本运行错误，请重新检查数据和编码.')
-                continue
 
-        if command=='4':
+        if command=='3':
             qq1=input('请输入需要交叉分析的行变量，也是因变量(例如: Q1): ')
             qq1=re.sub('^q','Q',qq1)
             if qq1 in code:
@@ -611,16 +567,40 @@ x. 全自动一键生成
             try:
                 t=rpt.qtable(data,code,qq1,qq2)
                 if not(t['fo'] is None):
-                    print('百分比表如下：')
-                    print(t['fop'])
-                    print('--'*10)
-                    print('频数表如下:')
-                    print(t['fo'])
+                    t_result=rpt.contingency(t['fo'])
+                    result=t_result['significant']['result']
+                    pvalue=t_result['significant']['pvalue']
+                    summary=t_result['summary']['summary']
+                    if result==1:
+                        sign_value='两个变量*具有*显著型差异'
+                    elif result==0:
+                        sign_value='两个变量*没有*显著型差异'
+                    else:
+                        sign_value='不满足卡方检验的条件'
+                    print('--卡方检验的p值为{:.3f}, {}'.format(pvalue,sign_value))
+                    print('--'+summary)
+                    t1=t['fo'].unstack()
+                    t1.name='频数'
+                    t2=t['fop'].unstack()
+                    t2.name='占比'
+                    ct=pd.concat([t1,t2],axis=1)
+                    ct['占比']=ct['占比'].map(lambda x:'{:.1f}%'.format(x*100))
+                    ct['频数']=ct['频数'].map(lambda x:int(x))
+                    print('--频数和占比如下：')
+                    print(ct)
+                    tmp=input('是否将结果导出到本地? 请输入y/n: ')
+                    tmp=re.sub('\s','',tmp)
+                    tmp=tmp.lower()
+                    if tmp in ['yes','y']:
+                        ct=pd.concat([t['fo'],t['fop']],axis=1)
+                        filename=time.strftime('.\\out\\CrossAnalysis_%Y%m%d%H%M.xlsx', time.localtime())
+                        ct.to_excel(filename)
+                        print('已经导出到本地，文件名为:{}'.format(filename))
             except Exception as e:
                 print(e)
                 print('脚本运行错误，请重新检查数据和编码.')
                 continue
-        if command=='5':
+        if command=='4':
             qq1=input('请输入需要对应分析的行变量，也是因变量(例如: Q1): ')
             qq1=re.sub('^q','Q',qq1)
             if qq1 in code:
