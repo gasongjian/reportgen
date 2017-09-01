@@ -35,7 +35,7 @@ from pptx.chart.data import ChartData,XyChartData,BubbleChartData
 from pptx.enum.chart import XL_CHART_TYPE
 from pptx.util import Inches, Pt, Emu
 from pptx.enum.chart import XL_LEGEND_POSITION
-from pptx.enum.chart import XL_LABEL_POSITION
+#from pptx.enum.chart import XL_LABEL_POSITION
 from pptx.dml.color import RGBColor
 
 
@@ -1153,8 +1153,13 @@ def load_data(method='filedialog',**kwargs):
         import tkinter as tk
         from tkinter.filedialog import askopenfilenames
         tk.Tk().withdraw();
-        #print(u'请选择编码所需要的数据文件（支持问卷星和已编码好的数据）') 
-        initialdir = ".\\data"
+        #print(u'请选择编码所需要的数据文件（支持问卷星和已编码好的数据）')
+        if 'initialdir' in kwargs:
+            initialdir=kwargs['initialdir']
+        elif os.path.isdir('.\\data'):
+            initialdir = ".\\data"
+        else:
+            initialdir = "."
         title =u"请选择编码所需要的数据文件（支持问卷星和已编码好的数据）"
         filetypes = (("Excel files","*.xls;*.xlsx"),("CSV files","*.csv"),("all files","*.*"))
         filenames=[]
