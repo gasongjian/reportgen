@@ -1991,6 +1991,26 @@ def fisher_exact(fo,alpha=0.05):
     else:
         result=0
     return (result,p_value)
+
+def anova(data,formula):
+    '''方差分析
+    输入
+    --data： DataFrame格式，包含数值型变量和分类型变量
+    --formula：变量之间的关系，如：数值型变量~C(分类型变量1)[+C(分类型变量1)[+C(分类型变量1):(分类型变量1)]
+    
+    返回[方差分析表]
+    [总体的方差来源于组内方差和组间方差，通过比较组间方差和组内方差的比来推断两者的差异]
+    --df:自由度
+    --sum_sq：误差平方和
+    --mean_sq：误差平方和/对应的自由度
+    --F：mean_sq之比
+    --PR(>F)：p值，比如<0.05则代表有显著性差异   
+    '''       
+    import statsmodels.api as sm
+    from statsmodels.formula.api import ols
+    cw_lm=ols(formula, data=data).fit() #Specify C for Categorical
+    r=sm.stats.anova_lm(cw_lm)
+    return r
     
     
 def mca(X,N=2):
