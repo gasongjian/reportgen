@@ -1573,7 +1573,8 @@ def data_merge(ques1,ques2,qlist1=None,qlist2=None,name1='ques1',name2='ques2',\
     code12={}
     for i,cc in enumerate(qlist1):
         code12[cc]=code1[cc]
-        code12[cc]['code'].update(code2[qlist2[i]]['code'])   
+        if 'code' in code1[cc] and 'code' in code2[qlist2[i]]:
+            code12[cc]['code'].update(code2[qlist2[i]]['code'])   
     code12[mergeqnum]={'content':u'来源','code':{1:name1,2:name2},'qtype':u'单选题','qlist':[mergeqnum]}
     return data12,code12
 
