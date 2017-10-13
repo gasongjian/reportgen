@@ -2761,6 +2761,13 @@ def contingency(fo,alpha=0.05):
     cdata['TWI']=TWI
     cdata['CHI']=CHI
     cdata['PCHI']=PCHI
+    # 根据卡方值得大小标记相关性的程度     
+    CHI_Label=CHI/N/min(R-1,C-1)
+    bins=[-np.inf,-0.0009,-0.0006,-0.00036,0.00036,0.0006,0.0009,np.inf]
+    labels=['强负相关','中负相关','弱负相关','','弱正相关','中正相关','强正相关']
+    tmp=pd.cut(CHI_Label.as_matrix().flatten(),bins,labels=labels)
+    CHI_Label=pd.DataFrame(np.array(tmp).reshape(CHI_Label.shape),index=CHI_Label.index,columns=CHI_Label.columns)
+    cdata['CHI_Label']=CHI_Label
 
     # 显著性检验(独立性检验)
     significant={}
@@ -2793,14 +2800,17 @@ def contingency(fo,alpha=0.05):
             chiStats=(1,np.nan)
         significant['pvalue']=chiStats[1]
         significant['method']='chi-test'
-        #significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
+        significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
         if chiStats[1] <= alpha:
             significant['result']=1
+            significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
         elif np.isnan(chiStats[1]):
             significant['pvalue']=-2
             significant['result']=-1
+            significant['vcoef']=np.nan   
         else:
             significant['result']=0
+            significant['vcoef']=math.sqrt(chiStats[0]/N/min(R-1,C-1))
     cdata['significant']=significant
 
     # 列联表分析summary
@@ -3155,6 +3165,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         pd.DataFrame(qsample,columns=['样本数']).to_excel(Writer,qq,startrow=Writer_rows+2)
         Writer_rows+=len(qsample)+2
 
+
         #列联表分析
         cdata=contingency(t1,alpha=0.05)# 修改容错率
         result[qq]=cdata
@@ -3164,6 +3175,16 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             if save_dstyle:
                 for dstyle in save_dstyle:
                     cdata[dstyle].to_excel(Writer_save[u'Writer_'+dstyle],qq,index_label=qq,float_format='%.2f')
+
+        # 将卡方检验结果输出到Excel中
+        if (cdata is not None) and ('CHI_Label' in cdata):
+
+            tmp=pd.DataFrame(np.array([[cdata['significant']['result'],cdata['significant']['pvalue'],cdata['significant']['vcoef']]]),\
+                             columns=['显著性结果','p值','V相关系数'],index=['{}-{}'.format(qq,cross_class)])
+            tmp.to_excel(Writer,qq,index_label='卡方检验结果',startrow=Writer_rows+4)
+            Writer_rows+=len(tmp)+2
+            cdata['CHI_Label'].to_excel(Writer,qq,index_label='相对差异分析',startrow=Writer_rows+4)
+            Writer_rows+=len(qsample)+2
 
         if qtype in [u'单选题',u'多选题',u'排序题']:
             plt_data=t*100
@@ -3591,7 +3612,7 @@ def scorpion(data,code,filename='scorpion'):
         Writer_rows+=len(fo_fop)+3   
     qIndex.to_excel(Writer,'索引')
     
-    crossAna=pd.DataFrame(columns=['RowVar','ColVar','SampleSize','pvalue','significant','summary'])
+    crossAna=pd.DataFrame(columns=['RowVar','ColVar','SampleSize','pvalue','significant','vcoef','summary'])
     N=0
     qqlist=[qq for qq in qqlist if code[qq]['qtype'] in ['单选题','多选题','矩阵单选题','排序题']]
     start_time=time.clock()
@@ -3624,17 +3645,19 @@ def scorpion(data,code,filename='scorpion'):
             if cdata:
                 result=cdata['significant']['result']
                 pvalue=cdata['significant']['pvalue']
+                vcoef=cdata['significant']['vcoef']
                 summary=cdata['summary']['summary']
             else:
-                result=-2
-                pvalue=-2
+                result=np.nan
+                pvalue=np.nan
+                vcoef=np.nan
                 summary='没有找到结论'
             summary='\n'.join(summary.splitlines()[1:])#去掉第一行
             if len(summary)==0:
                 summary='没有找到结论'
-            crossAna.loc[N,:]=[qq1,qq2,samplesize,pvalue,result,summary]
+            crossAna.loc[N,:]=[qq1,qq2,samplesize,pvalue,result,vcoef,summary]
             N+=1
-    crossAna.to_excel(Writer,'交叉分析表',index=False)            
+    crossAna.to_excel(Writer,'交叉分析表',index=False)
     
     Writer.save()
 
