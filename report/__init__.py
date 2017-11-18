@@ -1,3 +1,9 @@
 # -*- coding: utf-8
-import report
-from report import *
+from reportgen.report import Rerort
+from reportgen.report import df_to_table
+from reportgen.report import df_to_chartdata
+from reportgen.report import plot_table
+from reportgen.report import plot_textbox
+from reportgen.report import plot_chart
+from reportgen.report import plot_picture
+from reportgen.report import slides_data_gen
