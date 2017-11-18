@@ -27,8 +27,7 @@ Quick Start
 
 1、Get texts or images in a pptx file.
 
-..code-block:: python
-    :linenos:
+::
 
     import reportgen as rpt
 	# Open a pptx file
@@ -42,8 +41,7 @@ Quick Start
 
 2、Created a analysis report.
 
-..code-block:: python
-    :linenos:
+::
 
     import reportgen as rpt
 	import pandas as pd
@@ -58,12 +56,3 @@ Quick Start
 	data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
 	p.add_slide(data={'data':data,'slide_type':'chart','type':'COLUMN_CLUSTERED'},\
 	title='the scores report',summary='Our class got excellent results')
-
-
-    
- 
- 
- 
- 
- 
- 
