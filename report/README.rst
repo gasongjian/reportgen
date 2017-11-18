@@ -27,7 +27,7 @@ Quick Start
 
 1、Get texts or images in a pptx file.
 
-.. code-block:: python
+..code-block:: python
     :linenos:
 
     import reportgen as rpt
@@ -42,7 +42,7 @@ Quick Start
 
 2、Created a analysis report.
 
-.. code-block:: python
+..code-block:: python
     :linenos:
 
     import reportgen as rpt
