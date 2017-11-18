@@ -55,4 +55,40 @@ Quick Start
 	# add a chart slide
 	data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
 	p.add_slide(data={'data':data,'slide_type':'chart','type':'COLUMN_CLUSTERED'},\
-	title='the scores report',summary='Our class got excellent results')
+	title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
+	
+	# add a table slide
+	data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
+	p.add_slide(data={'data':data,'slide_type':'table'},title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
+	
+	# add a textbox slide
+	data='This a paragraph. \n'*4
+	p.add_slide(data={'data':data,'slide_type':'textbox'},title='This is a textbox slide',summary='',footnote='')
+
+	# add a picture slide
+	data='.\\images\\images.png'
+	p.add_slide(data={'data':data,'slide_type':'picture'},title='This is a picture slide')
+
+
+一般我把一张分析类型的slide分成四部分，title、summary、data、footnote。其中data可以是多个文本框、图表或图片等，只要给定相关参数即可（不足的函数会尝试自动补齐）
+
+add_slide(data=[{'data':,'slide_type':,'type':},],title='',summary='',footnote='',layouts='auto')
+
+for example, if we want to plot a chart on left and insert a picture on the right, we can write code:
+
+::
+
+	import reportgen as rpt
+	import pandas as pd
+
+	scores=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
+	data=['data':scores,'slide_type':'chart','type':'COLUMN_CLUSTERED']
+	p.add_slide([''])
+	
+	
+	
+	
+	
+	
+	
+	
