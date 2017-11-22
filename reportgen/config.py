@@ -5,6 +5,10 @@ Created on Mon Aug 14 09:39:10 2017
 @author: JSong
 """
 
+# 指定默认的模板
+#template='template.pptx'
+
+
 # PPT图表中的数字位数
 number_format_chart_1='0"%"'
 number_format_chart_2='0.00'

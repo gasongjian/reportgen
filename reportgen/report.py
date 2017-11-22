@@ -684,10 +684,12 @@ class Report():
         self.filename=filename
         self.chart_type_default=chart_type_default
         if filename is None:
-            if os.path.exists('template.pptx'):
+            if 'template' in config.__dict__:
+                prs=Presentation(config.template)
+            elif os.path.exists('template.pptx'):
                 prs=Presentation('template.pptx')
             else:
-                prs=Presentation()
+                prs=Presentation()                
         else :
             prs=Presentation(filename)
         self.prs=prs
@@ -754,13 +756,15 @@ class Report():
             return
         if not os.path.exists('.\\images'):
             os.mkdir('.\\images')
+        n_images=0
         for slide in self.prs.slides:
             for shape in slide.shapes:
                 if 'Image' in str(type(shape)) or 'Picture' in str(type(shape)):
+                    n_images+=1
                     shape_image=shape.image
                     #filename='.\\images\\'+shape_image.filename
-                    r=str(np.random.randint(99)).zfill(2)
-                    filename='.\\images\\images'+time.strftime('_%m%d%H%M%S', time.localtime())+r+'.'+shape_image.ext
+                    #r=str(np.random.randint(99)).zfill(2)
+                    filename='.\\images\\image%d'%n_images+'.'+shape_image.ext
                     p = PIL_Image.open(BytesIO(shape_image.blob))
                     p.save(filename)
                     #print('save {}'.format(shape_image.filename))
@@ -807,16 +811,15 @@ class Report():
             elif slide_type in ['picture','figure']:
                 self.prs=plot_picture(self.prs,data,layouts=layouts,title=title,summary=summary,\
                 footnote=footnote);
-        return self
 
 
     def add_cover(self,title='',author='',style='default',layouts='auto',size=[8,6]):
-        title =u'reportgen自动生成工具' if len(title)==0 else title
+        title =u'Analysis Report Powered by reportgen' if len(title)==0 else title
         #author =u'report' if len(author)==0 else author
         layouts=self.layouts_default if layouts == 'auto' else layouts
         if style == 'default':
             self.prs=plot_cover(self.prs,title=title,layouts=layouts,xspace=size[0],yspace=size[1]);
-        return self
+
 
         
     def location_suggest(self,num=1,rate=0.78):
@@ -1013,166 +1016,10 @@ class Report():
                     tick_labels = chart.value_axis.tick_labels
                     tick_labels.number_format = number_format2
                     tick_labels.font.size = font_default_size                
-                 
-        return self
+
 
 
     def save(self,filename=None):
         filename=self.filename+time.strftime('_%Y%m%d%H%M.pptx', time.localtime()) if filename is None else filename
         self.prs.save(filename)
 
-
-
-
-
-if __name__ == '__main__':
-    '''
-    暂时用于保存一些信息
-    '''
-    prs = Presentation()
-    slide_width=prs.slide_width
-    slide_height=prs.slide_height
-
-    '''
-    模板文件放在,可自己修改，其中不能增加板式
-    C:\Anaconda2\Lib\site-packages\pptx\templates\default.pptx
-    复杂用法：
-    prs = Presentation()
-    '''
-
-    #标题页面
-    title_slide = prs.slide_layouts[0]
-    #重点列表
-    bullet_slide = prs.slide_layouts[1]
-    # 只有一个标题
-    title_only_slide = prs.slide_layouts[5]
-    # 空页面
-    blank_slide = prs.slide_layouts[6]
-
-    # 第一页：标题
-    slide = prs.slides.add_slide(title_slide)
-    title = slide.shapes.title
-    subtitle = slide.placeholders[1]
-    title.text = u"半自动化报告生成"
-    subtitle.text = "powered by python-pptx"
-
-    # 第二页：文本框
-    slide = prs.slides.add_slide(blank_slide)
-    left = top = width = height = Inches(1)
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.text = "This is text inside a textbox"
-    p = tf.add_paragraph()
-    p.text = "This is a second paragraph that's bold"
-    p.font.bold = True
-    p = tf.add_paragraph()
-    p.text = "This is a third paragraph that's big"
-    p.font.size = Pt(40)
-
-    # 第三页：表格
-    '''
-    默认表格样式
-    '''
-    slide = prs.slides.add_slide(title_only_slide)
-    shapes = slide.shapes
-    shapes.title.text = u'表格示例'
-    #d=pd.read_csv('data.csv',encoding='gbk')
-    #t=pd.crosstab(d['Q2'],d['Q3'])
-    left=Emu(0.15*slide_width)
-    top=Emu(0.3*slide_height)
-    width=Emu(0.7*slide_width)
-    height=Emu(0.6*slide_height)
-    #df_to_table(slide,t,left,top,width,height,rownames=True)
-
-    # 第4、5、6、7页：图表
-
-    t1=pd.DataFrame({u'满意度':[2,4,3,3.5],u'重要度':[2.2,3.5,2.6,3.8]},columns=[u'满意度',u'重要度'])
-    t2=pd.DataFrame({u'满意度':[2,4,3,3.5],u'重要度':[3.2,4.5,3.6,4.8]},columns=[u'满意度',u'重要度'])
-    t3=pd.DataFrame({u'满意度':[2,4,3,3.5],u'重要度':[2.2,3.5,2.6,3.8],\
-    u'大小':[3,2,6,8]},columns=[u'满意度',u'重要度',u'大小'])
-    t1.rename(index={0:u'张',1:u'王',2:u'李',3:u'宋'},inplace=True)
-    plot_chart(prs,t1,'COLUMN_CLUSTERED')
-    plot_chart(prs,t1,'COLUMN_STACKED')
-    plot_chart(prs,t1,'BAR_CLUSTERED')
-    #plot_chart(prs,t,'BAR_CLUSTERED')
-    plot_chart(prs,[t1,t2],'XY_SCATTER')
-    plot_chart(prs,t3,'BUBBLE')
-    plot_chart(prs,pd.DataFrame({u'满意度':[2,4,3,3.5]}),'PIE')
-
-    # 第8页：自定义图
-    slide = prs.slides.add_slide(title_only_slide)
-    slide.shapes.title.text = u'高度定制化'
-    left,top = Emu(0.12*slide_width), Emu(0.2*slide_height)
-    width,height = Emu(0.7*slide_width), Emu(0.1*slide_height)
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    txBox.text_frame.text=u'这里是一些简短的结论'
-    # define chart data ---------------------
-    '''
-    chart_data = ChartData()
-    chart_data.categories = ['East', 'West', 'Midwest']
-    chart_data.add_series('Series 1', (19.2, 21.4, 16.7))
-    chart_data.add_series('Series 2', (23, 16, 19))
-    '''
-    chart_data=df_to_chartdata(t1,'ChartData')
-    # add chart to slide --------------------
-    x, y = Emu(0.05*slide_width), Emu(0.35*slide_height)
-    cx, cy = Emu(0.76*slide_width), Emu(0.55*slide_height)
-    chart=slide.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, \
-    x, y, cx, cy, chart_data).chart
-
-
-
-    '''
-    # ----样式-------
-    chart.chart_style: 样式(ppt自带的1到48)
-    # ----坐标轴-------
-    axis=chart.category_axis: X轴坐标控制
-    axis=chart.value_axis   :Y周坐标控制
-    axis.visible: 坐标轴是否可见
-    axis.has_major_gridlines：添加主要网格线
-    axis.major_gridlines: 设置主要网格线
-    axis.has_minor_gridlines: 添加次要网格线
-    axis.minor_gridlines: 设置次要网格线
-    axis.major_tick_mark: 主要刻度线类型(XL_TICK_MARK.OUTSIDE: 无，内部，外部，交叉)
-    axis.minor_tick_mark: 主要刻度线类型(XL_TICK_MARK.OUTSIDE: 无，内部，外部，交叉)
-    axis.maximum_scale:  最大值
-    axis.minimum_scale：最小值
-    axis.tick_label_position: 坐标轴标签
-    axis.tick_labels.font:  字体设置(共8个维度,如.bold=True, .size=Pt(12))
-    axis.tick_labels.number_format: 数字格式('0"%"')
-    axis.tick_labels.number_format_is_linked
-    axis.tick_labels.offset
-    # ----数据标签-------
-    plot = chart.plots[0]
-    plot.has_data_labels = True
-    data_labels = plot.data_labels
-    data_labels.font.size = Pt(13)
-    # from pptx.dml.color import RGBColor
-    data_labels.font.color.rgb = RGBColor(0x0A, 0x42, 0x80)
-    # from pptx.enum.chart import XL_LABEL_POSITION
-    data_labels.position = XL_LABEL_POSITION.INSIDE_END
-    # ----图例-------
-    # from pptx.enum.chart import XL_LEGEND_POSITION
-    chart.has_legend = True
-    chart.legend.position = XL_LEGEND_POSITION.RIGHT
-    chart.legend.include_in_layout = False
-    '''
-    '''
-    category_axis = chart.category_axis
-    category_axis.has_major_gridlines = True
-    category_axis.minor_tick_mark = XL_TICK_MARK.OUTSIDE
-    category_axis.tick_labels.font.italic = True
-    category_axis.tick_labels.font.size = Pt(24)
-    value_axis = chart.value_axis
-    value_axis.maximum_scale = 50.0
-    value_axis.minor_tick_mark = XL_TICK_MARK.OUTSIDE
-    value_axis.has_minor_gridlines = True
-    tick_labels = value_axis.tick_labels
-    tick_labels.number_format = '0"%"'
-    tick_labels.font.bold = True
-    tick_labels.font.size = Pt(14)
-    '''
-
-    # 添加致谢页
-    #slide = prs.slides.add_slide(prs.slide_layouts[8])
-    prs.save('test.pptx')

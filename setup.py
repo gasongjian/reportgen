@@ -4,9 +4,9 @@ from setuptools import setup, find_packages
 
 setup(
     name='reportgen',
-    version=0.1.0,
+    version='0.1.3',
     description=(
-        '一个能自动生成PPTX报表的工具'
+        'reportgen is a Python library for creating and updating analysis report.'
     ),
     long_description=open('README.rst').read(),
     author='JSong',
@@ -23,17 +23,15 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Programming Language :: Python',
         'Programming Language :: Python :: Implementation',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.x',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Topic :: Software Development :: Libraries'
     ],
 	install_requires=[
         'pandas',
         'numpy',
-        'pptx',
-		'PIL',
-		'io',
-		'time'
+        'python-pptx',
+        'Pillow'
     ]
 )
