@@ -3,15 +3,6 @@
 Created on Tue Nov  8 20:05:36 2016
 @author: JSong
 """
-'''
-pptx 用的单位是pptx.util.Emu,  英语单位
-pptx.util.Inches(1)=914400
-pptx.util.Pt(1)=12700
-pptx.util.Cm(1)=360000
-slide的大小:
-pptx.Presentation().slide_height
-pptx.Presentation().slide_width
-'''
 
 import os
 import time
@@ -19,9 +10,13 @@ import time
 
 import pandas as pd
 import numpy as np
-#import matplotlib.pyplot as plt
-import config
+pd.set_option('display.float_format', lambda x: '%.2f' % x)
 
+from . import config
+from .delaunay import Delaunay2D
+
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from pptx import Presentation
 from pptx.chart.data import ChartData,XyChartData,BubbleChartData
@@ -31,8 +26,16 @@ from pptx.enum.chart import XL_LEGEND_POSITION
 #from pptx.enum.chart import XL_LABEL_POSITION
 from pptx.dml.color import RGBColor
 
+_thisdir = os.path.split(__file__)[0]
+# default chinese font
+from matplotlib.font_manager import FontProperties
+font_path=config.font_path
+if font_path:
+    myfont=FontProperties(fname=font_path)
+    sns.set(font=myfont.get_name())
 
-
+# default template of pptx report
+template_pptx=config.template_pptx
 
 
 chart_list={\
@@ -103,6 +106,10 @@ chart_list={\
 "XY_SCATTER_LINES_NO_MARKERS":[75,"XyChartData"],\
 "XY_SCATTER_SMOOTH":[72,"XyChartData"],\
 "XY_SCATTER_SMOOTH_NO_MARKERS":[73,"XyChartData"]}
+
+
+
+
 
 
 def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=True):
@@ -223,7 +230,7 @@ def plot_table(prs,df,layouts=[0,5],title=u'我是标题',summary=u'我是简短
     width=Emu(width*slide_width)
     height=Emu(height*slide_height)
     df_to_table(slide,df,left,top,width,height,index_names=True)
-    
+
         # 添加脚注 footnote=u'这里是脚注'
     if footnote:
         left,top = Emu(0.025*slide_width), Emu(0.95*slide_height)
@@ -476,10 +483,7 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
 
 
 def plot_cover(prs,title=u'reportgen工具包封面',layouts=[0,0],xspace=8,yspace=6):
-    try:
-        from delaunay import Delaunay2D
-    except:
-        return 
+
     slide_width=prs.slide_width
     slide_height=prs.slide_height
     # 可能需要修改以适应更多的情形
@@ -667,6 +671,42 @@ def slides_data_gen(slides_data,chart_type_default='COLUMN_CLUSTERED'):
     return slides_data_new
 
 
+def genwordcloud(texts,mask=None,font_path=None,background_color='white'):
+    '''生成词云
+    parameter
+    ----------
+    mask: RGBA模式数组，最后一个分量是alpha通道, 默认会生成一个900*1200的椭圆
+    font_path: 采用的字体，建议采用安卓默认字体DroidSansFallback.ttf
+    
+    return
+    -------
+    img:可以直接img.save('test.png')
+    '''
+    from PIL import Image
+    try:
+        from wordcloud import WordCloud
+    except:
+        #raise Exception('wordcloud need install wordcloud package.')
+        print('wordcloud need install wordcloud package.')
+        return None
+    if mask is None:
+        tmp=np.zeros((900,1200),dtype=np.uint8)
+        for i in range(tmp.shape[0]):
+            for j in range(tmp.shape[1]):
+                if (i-449.5)**2/(430**2)+(j-599.5)**2/(580**2)>1:
+                    tmp[i,j]=255
+        mask=np.zeros((900,1200,4),dtype=np.uint8)
+        mask[:,:,0]=tmp
+        mask[:,:,1]=tmp
+        mask[:,:,2]=tmp
+        mask[:,:,3]=255
+    else:
+        mask=np.array(Image.open(mask))
+    wordcloud = WordCloud(background_color = background_color,font_path=font_path, mask = mask)
+    wordcloud.generate(texts)
+    img=wordcloud.to_image()
+    return img
+
 
 
 
@@ -679,17 +719,19 @@ class Report():
     r.save()
     '''
     def __init__(self,filename=None,chart_type_default='COLUMN_CLUSTERED'):
+        '''
+        默认绘图类型后期会改为auto
+        '''
 
-        #self.template=template
         self.filename=filename
         self.chart_type_default=chart_type_default
         if filename is None:
-            if 'template' in config.__dict__:
-                prs=Presentation(config.template)
-            elif os.path.exists('template.pptx'):
+            if os.path.exists('template.pptx'):
                 prs=Presentation('template.pptx')
+            elif template_pptx is not None:
+                prs=Presentation(template_pptx)
             else:
-                prs=Presentation()                
+                prs=Presentation()
         else :
             prs=Presentation(filename)
         self.prs=prs
@@ -737,7 +779,7 @@ class Report():
     def get_texts(self):
         # one for each text run in presentation
         text_runs = []
-    
+
         for slide in self.prs.slides:
             for shape in slide.shapes:
                 if not shape.has_text_frame:
@@ -746,7 +788,7 @@ class Report():
                     for run in paragraph.runs:
                         text_runs.append(run.text)
         return text_runs
-        
+
     def get_images(self):
         try:
             from PIL import Image as PIL_Image
@@ -821,14 +863,14 @@ class Report():
             self.prs=plot_cover(self.prs,title=title,layouts=layouts,xspace=size[0],yspace=size[1]);
 
 
-        
+
     def location_suggest(self,num=1,rate=0.78):
         '''统一管理slides各个模块的位置
         parameter
         --------
         num: 主体内容（如图、外链图片、文本框等）的个数，默认从左到右依次排列
         rate: 主体内容的宽度综合
-        
+
         return
         -----
         locations: dict格式. l代表left,t代表top,w代表width，h代表height
@@ -838,21 +880,21 @@ class Report():
             summary_loc=config.summary_loc
         else:
             summary_loc=[0.10,0.14,0.80,0.15]
-            
+
         if 'footnote_loc' in config.__dict__:
             footnote_loc=config.footnote_loc
         else:
-            footnote_loc=[0.025,0.95,0.70,0.06]           
+            footnote_loc=[0.025,0.95,0.70,0.06]
 
         if 'data_loc' in config.__dict__:
             data_loc=config.data_loc
         else:
             data_loc=[0.11,0.30,0.78,0.60]
-            
+
         locations={}
         locations['summary']={'l':Emu(summary_loc[0]*slide_width),'t':Emu(summary_loc[1]*slide_height),\
                  'w':Emu(summary_loc[2]*slide_width),'h':Emu(summary_loc[3]*slide_height)}
-        
+
         locations['footnote']={'l':Emu(footnote_loc[0]*slide_width),'t':Emu(footnote_loc[1]*slide_height),\
                  'w':Emu(footnote_loc[2]*slide_width),'h':Emu(footnote_loc[3]*slide_height)}
         # 主体部分只有一个的情形
@@ -863,7 +905,7 @@ class Report():
             left=[(1-rate)*(i+1)/(float(num)+1)+rate*i/float(num) for i in range(num)]
             top=[data_loc[1]]*num
             width=[rate/float(num)]*num
-            height=[data_loc[3]]*num 
+            height=[data_loc[3]]*num
             locations['data']=[{'l':Emu(left[i]*slide_width),'t':Emu(top[i]*slide_height),\
                      'w':Emu(width[i]*slide_width),'h':Emu(height[i]*slide_height)} for i in range(num)]
         else:
@@ -878,19 +920,20 @@ class Report():
         data=[{'data':,'slide_type':,'type':,},] # 三个是必须字段，其他根据slide_type不同而不同
         number_format_data: 图的数据标签
         number_format_tick: 横纵坐标的数据标签
-        
+
         '''
         #slide_width=self.prs.slide_width
         #slide_height=self.prs.slide_height
-        
+
         # 标准化data格式
         if not(isinstance(data,list)):
             data=[data]
         for i,d in enumerate(data):
-            if not(isinstance(d,dict)):               
+            if not(isinstance(d,dict)):
                 if isinstance(d,(pd.core.frame.DataFrame,pd.core.frame.Series)):
                     slide_type='chart'
                     chart_type=self.chart_type_default
+                    d=pd.DataFrame(d)
                 elif isinstance(d,str) and os.path.exists(d):
                     slide_type='picture'
                     chart_type=''
@@ -908,16 +951,16 @@ class Report():
         summary_loc=locations['summary']
         footnote_loc=locations['footnote']
         data_loc=locations['data']
-        
+
         # 选取的板式
         if layouts == 'auto':
             layouts=self.layouts_default
         title_only_slide = self.prs.slide_masters[layouts[0]].slide_layouts[layouts[1]]
         slide = self.prs.slides.add_slide(title_only_slide)
-        
+
         #输出标题
         slide.shapes.title.text = title
-      
+
         # 输出副标题 summary
         if summary:
             txBox = slide.shapes.add_textbox(summary_loc['l'], summary_loc['t'], summary_loc['w'], summary_loc['h'])
@@ -928,7 +971,7 @@ class Report():
             except:
                 pass
 
-    
+
         # 输出脚注 footnote
         if footnote:
             txBox = slide.shapes.add_textbox(footnote_loc['l'], footnote_loc['t'], footnote_loc['w'], footnote_loc['h'])
@@ -944,7 +987,7 @@ class Report():
             except:
                 pass
                 #print('cannot fit the size of font')
-                
+
         for i,dd in  enumerate(data):
             slide_type=dd['slide_type']
             left,top=data_loc[i]['l'],data_loc[i]['t']
@@ -974,18 +1017,18 @@ class Report():
             elif slide_type in ['chart']:
                 # 插入图表
                 chart_type_code=chart_list[chart_type][1]
-                chart_data=df_to_chartdata(dd['data'],chart_type_code)          
+                chart_data=df_to_chartdata(dd['data'],chart_type_code)
                 chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0],left, top, width, height, chart_data).chart
-            
+
                 if chart_type_code in [-4169,72,73,74,75]:
-                    continue                   
+                    continue
                 font_default_size=Pt(10) if 'font_default_size' not in config.__dict__ else config.font_default_size
                 # 添加图例
                 if (dd['data'].shape[1]>1) or (chart_type=='PIE'):
                     chart.has_legend = True
                     chart.legend.font.size=font_default_size
                     chart.legend.position = XL_LEGEND_POSITION.BOTTOM
-                    chart.legend.include_in_layout = False          
+                    chart.legend.include_in_layout = False
                 try:
                     chart.category_axis.tick_labels.font.size=font_default_size
                 except:
@@ -995,11 +1038,11 @@ class Report():
                 except:
                     pass
                 # 添加数据标签
-            
+
                 non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER','XY_SCATTER_LINES','PIE']
                 # 数据标签数值格式
                 number_format1='0.00' if 'number_format_data' not in dd else dd['number_format_data']
-                number_format2='0.0' if 'number_format_tick' not in dd else dd['number_format_tick']          
+                number_format2='0.0' if 'number_format_tick' not in dd else dd['number_format_tick']
                 if (chart_type not in non_available_list) or (chart_type == 'PIE'):
                     plot = chart.plots[0]
                     plot.has_data_labels = True
@@ -1015,11 +1058,10 @@ class Report():
                         chart.value_axis.has_major_gridlines = True
                     tick_labels = chart.value_axis.tick_labels
                     tick_labels.number_format = number_format2
-                    tick_labels.font.size = font_default_size                
+                    tick_labels.font.size = font_default_size
 
 
 
     def save(self,filename=None):
         filename=self.filename+time.strftime('_%Y%m%d%H%M.pptx', time.localtime()) if filename is None else filename
         self.prs.save(filename)
-

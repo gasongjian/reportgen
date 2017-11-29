@@ -26,7 +26,8 @@ import time
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import report as rpt
+from . import report as rpt
+
 
 
 
@@ -103,8 +104,8 @@ def read_code(filename):
                 tmp2=list(d[i:j,1])
                 for i in range(len(tmp2)):
                     if isinstance(tmp2[i],str):
-                        tmp2[i]=tmp2[i].strip()                
-                code[key][tmp]=tmp2             
+                        tmp2[i]=tmp2[i].strip()
+                code[key][tmp]=tmp2
         # 识别其他的字典字段
         elif (tmp!='NULL') and (d[i,2]!='NULL') and ((i==len(d)-1) or (d[i+1,0]=='NULL')):
             ind=np.argwhere(d[i+1:,0]!='NULL')
@@ -159,7 +160,7 @@ def save_code(code,filename='code.xlsx'):
                 try:
                     tmp2_key=sorted(tmp2,key=lambda c:float(re.findall('[\d\.]+','%s'%c)[-1]))
                 except:
-                    tmp2_key=list(tmp2.keys())   
+                    tmp2_key=list(tmp2.keys())
                 j=0
                 for key1 in tmp2_key:
                     if j==0:
@@ -193,7 +194,7 @@ Qn.weight:dict,每个选项的权重
 
 def dataText_to_code(df,sep,qqlist=None):
     '''编码文本数据
-    
+
     '''
 
     if sep in [';','┋']:
@@ -224,7 +225,7 @@ def dataText_to_code(df,sep,qqlist=None):
 
 def dataCode_to_text(df,code=None):
     '''将按序号数据转换成文本
-    
+
     '''
     if df.max().max()>1:
         sep='→'
@@ -263,7 +264,7 @@ def var_combine(data,code,qq1,qq2,sep=',',qnum_new=None,qname_new=None):
             qnum_new=qq1+'_'+qq2
     if qname_new is None:
         qname_new=code[qq1]['content']+'_'+code[qq2]['content']
-    
+
     if code[qq1]['qtype']!='单选题' or code[qq2]['qtype']!='单选题':
         print('只支持组合两个单选题，请检查.')
         raise
@@ -275,8 +276,8 @@ def var_combine(data,code,qq1,qq2,sep=',',qnum_new=None,qname_new=None):
         print('所选择的两个变量不符合函数要求.')
         raise
     data[qnum_new]=(d1-1)*sn+d2
-    code[qnum_new]={'qtype':'单选题','qlist':[qnum_new],'content':qname_new}    
-    
+    code[qnum_new]={'qtype':'单选题','qlist':[qnum_new],'content':qname_new}
+
     code_tmp={}
     for c1 in code[qq1]['code']:
         for c2 in code[qq2]['code']:
@@ -411,12 +412,12 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         filename2=os.path.join(filepath,filename2)
     else:
         print('can not dection the filepath!')
-    
+
     d1=pd.read_excel(filename1)
     d2=pd.read_excel(filename2)
     d2.replace({-2:np.nan,-3:np.nan},inplace=True)
     #d1.replace({u'(跳过)':np.nan},inplace=True)
-    
+
     code={}
     '''
     遍历一遍按文本数据，获取题号和每个题目的类型
@@ -501,7 +502,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 #c2_tmp=d2.loc[ind,current_name].map(lambda x: int(x) if (('%s'%x!='nan') and not(isinstance(x,str)) and (int(x)==x)) else x)
                 code[current_name]['code']=dict(zip(d2.loc[ind,current_name],d1.loc[ind,current_name]))
                 #code[current_name]['code']=dict(zip(c2,c1))
-    
+
         elif tmp2:
             name0='Q'+tmp2[0]
             # 新题第一个选项
@@ -554,7 +555,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
         for key in keys:
             if '%s'%key == 'nan':
                 del  code[current_name]['code'][key]
-    
+
     # 处理一些特殊题目，给它们的选项固定顺序，例如年龄、收入等
     for k in code.keys():
         content=code[k]['content']
@@ -599,12 +600,12 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                         weight=pd.Series(dict(zip(tmp1,tmp3)))
                         weight=weight.replace(dict(zip([0,1,2,3,4,5,6,7,8,9,10],[-100,-100,-100,-100,-100,-100,-100,0,0,100,100])))
                         code[k]['weight']=weight.to_dict()
-                
+
     try:
         d2[u'所用时间']=d2[u'所用时间'].map(lambda s: int(s[:-1]))
     except:
         pass
-    
+
     return (d2,code)
 
 
@@ -663,7 +664,7 @@ def load_data(method='filedialog',**kwargs):
 
         tmp={'filename':filename_nopath,'filenametype':'','rowlens':rowlens,'collens':collens,\
         'field_c1':field_c1,'field_r1':field_r1,'type':'','rate_real':rate_real}
-        
+
         if len(re.findall('^data.*\.xls',filename_nopath))>0:
             tmp['filenametype']='data'
         elif len(re.findall('^code.*\.xls',filename_nopath))>0:
@@ -723,10 +724,10 @@ def load_data(method='filedialog',**kwargs):
                 print('您输入正确的编码.')
         else:
             print('没有找到任何问卷数据..')
-            raise            
+            raise
     else:
         print('没有找到任何数据')
-        raise              
+        raise
     return data,code
 
 
@@ -783,27 +784,27 @@ def spec_rcode(data,code):
             data.insert(ind+3,qq+'c',tmp3)
             code[qq+'c']={'content':'城市分级','qtype':'单选题','qlist':[qq+'c'],\
             'code':{0:'北上广深',1:'新一线',2:'二线',3:'三线',4:'四线',5:'五线',6:'五线以下'}}
-        
+
     return data,code
 
 
-def levenshtein(s, t):  
-        ''''' From Wikipedia article; Iterative with two matrix rows. '''  
-        if s == t: return 0  
-        elif len(s) == 0: return len(t)  
-        elif len(t) == 0: return len(s)  
-        v0 = [None] * (len(t) + 1)  
-        v1 = [None] * (len(t) + 1)  
-        for i in range(len(v0)):  
-            v0[i] = i  
-        for i in range(len(s)):  
-            v1[0] = i + 1  
-            for j in range(len(t)):  
-                cost = 0 if s[i] == t[j] else 1  
-                v1[j + 1] = min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost)  
-            for j in range(len(v0)):  
-                v0[j] = v1[j]  
-   
+def levenshtein(s, t):
+        ''''' From Wikipedia article; Iterative with two matrix rows. '''
+        if s == t: return 0
+        elif len(s) == 0: return len(t)
+        elif len(t) == 0: return len(s)
+        v0 = [None] * (len(t) + 1)
+        v1 = [None] * (len(t) + 1)
+        for i in range(len(v0)):
+            v0[i] = i
+        for i in range(len(s)):
+            v1[0] = i + 1
+            for j in range(len(t)):
+                cost = 0 if s[i] == t[j] else 1
+                v1[j + 1] = min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost)
+            for j in range(len(v0)):
+                v0[j] = v1[j]
+
         return v1[len(t)]
 
 def code_similar(code1,code2):
@@ -815,7 +816,7 @@ def code_similar(code1,code2):
     2、多选题/排序题：不考虑序号，共同变量超过一半即可：3
     3、矩阵单选题：code_r 暂时只考虑完全匹配
     4、其他情况为0
-    
+
     '''
     code_distance_min=pd.DataFrame(index=code1.keys(),columns=['qnum','similar_content','similar_code'])
     for c1 in code1:
@@ -824,12 +825,12 @@ def code_similar(code1,code2):
         for c2 in code2:
             if code1[c1]['qtype']==code2[c2]['qtype']:
                 disstance_str[c2]=levenshtein(code1[c1]['content'], code2[c2]['content'])
-        c2=disstance_str.idxmin()       
-        if '%s'%c2 == 'nan':            
+        c2=disstance_str.idxmin()
+        if '%s'%c2 == 'nan':
             continue
         min_len=(len(code1[c1]['content'])+len(code2[c2]['content']))/2
         similar_content=100-100*disstance_str[c2]/min_len if min_len>0 else 0
-        # 计算选项的相似度                                     
+        # 计算选项的相似度
         qtype=code2[c2]['qtype']
         if qtype == '单选题':
             t1=code1[c1]['code']
@@ -851,7 +852,7 @@ def code_similar(code1,code2):
             if t1==t2:
                 similar_code=1
             elif len(set(t1)&set(t2))>=0.5*len(set(t1)|set(t2)):
-                similar_code=3               
+                similar_code=3
             else:
                 similar_code=0
         elif qtype in ['矩阵多选题']:
@@ -863,7 +864,7 @@ def code_similar(code1,code2):
             if t1==t2:
                 similar_code=1
             elif len(set(t1)&set(t2))>=0.5*len(set(t1)|set(t2)):
-                similar_code=3               
+                similar_code=3
             else:
                 similar_code=0
         elif qtype in ['填空题']:
@@ -879,8 +880,8 @@ def code_similar(code1,code2):
     # 剔除qnum中重复的值
     code_distance_min=code_distance_min.sort_values(['qnum','similar_content','similar_code'],ascending=[False,False,True])
     code_distance_min.loc[code_distance_min.duplicated(['qnum']),:]=np.nan
-    code_distance_min=pd.DataFrame(code_distance_min,index=code1.keys())                             
-    return code_distance_min 
+    code_distance_min=pd.DataFrame(code_distance_min,index=code1.keys())
+    return code_distance_min
 
 
 
@@ -934,8 +935,8 @@ def data_merge(ques1,ques2,qlist1=None,qlist2=None,name1='ques1',name2='ques2',\
                 qlist1.append(c1)
                 qlist2.append(rs_qq)
                 print('将自动合并: {} 和 {} (只保留了相同的选项)'.format(c1,rs_qq))
-                
-            elif similar_code in [1,2]:               
+
+            elif similar_code in [1,2]:
                 print('-'*40)
                 print('为【  {}:{} 】自动匹配到: '.format(c1,code1[c1]['content']))
                 print('  【  {}:{} 】,其相似度为{:.0f}%.'.format(rs_qq,code2[rs_qq]['content'],similar_content))
@@ -1016,7 +1017,7 @@ def data_merge(ques1,ques2,qlist1=None,qlist2=None,name1='ques1',name2='ques2',\
                     qlist2.append(c2)
                     print('将自动合并: {} 和 {}'.format(c1,c2))
                 else:
-                    print('选项不匹配，请重新输入')                                      
+                    print('选项不匹配，请重新输入')
     else:
         qqlist1=[]
         for qq in qlist1:
@@ -1032,7 +1033,7 @@ def data_merge(ques1,ques2,qlist1=None,qlist2=None,name1='ques1',name2='ques2',\
     data1.loc[:,mergeqnum]=1
     data2=data2.loc[:,qqlist2]
     data2.loc[:,mergeqnum]=2
-    
+
     if len(qqlist1)!=len(qqlist2):
         print('两份数据选项不完全匹配，请检查....')
         raise
@@ -1042,7 +1043,7 @@ def data_merge(ques1,ques2,qlist1=None,qlist2=None,name1='ques1',name2='ques2',\
     for i,cc in enumerate(qlist1):
         code12[cc]=code1[cc]
         if 'code' in code1[cc] and 'code' in code2[qlist2[i]]:
-            code12[cc]['code'].update(code2[qlist2[i]]['code'])   
+            code12[cc]['code'].update(code2[qlist2[i]]['code'])
     code12[mergeqnum]={'content':u'来源','code':{1:name1,2:name2},'qtype':u'单选题','qlist':[mergeqnum]}
     return data12,code12
 
@@ -1072,9 +1073,9 @@ def clean_ftime(ftime,cut_percent=0.25):
     1、只考虑截断问卷完成时间较小的样本
     2、找到完成时间变化的拐点，即需要截断的时间点
     返回：r
-    建议截断<r的样本    
+    建议截断<r的样本
     '''
-    t_min=int(ftime.min())      
+    t_min=int(ftime.min())
     t_cut=int(ftime.quantile(cut_percent))
     x=np.array(range(t_min,t_cut))
     y=np.array([len(ftime[ftime<=i]) for i in range(t_min,t_cut)])
@@ -1129,7 +1130,7 @@ def data_auto_code(data):
                 code[key]['qlist_open'].append(cc)
             else:
                 code[key]['qlist_open']=[cc]
-    
+
     for kk in code.keys():
         dd=data[code[kk]['qlist']]
         # 单选题和填空题
@@ -1183,23 +1184,23 @@ def save_data(data,filename=u'data.xlsx',code=None):
                 # 先变成一道题，插入表中，然后再把序号变成文本
                 tmp=data[qlist]
                 tmp=tmp.rename(columns=code[qq]['code'])
-                tmp=dataCode_to_text(tmp)          
+                tmp=dataCode_to_text(tmp)
                 ind=list(data1.columns).index(qlist[0])
                 qqname='{}({})'.format(qq,code[qq]['content'])
                 data1.insert(ind,qqname,tmp)
-                
-                tmp1=code[qq]['qlist']                
+
+                tmp1=code[qq]['qlist']
                 tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in tmp1]
                 data1.rename(columns=dict(zip(tmp1,tmp2)),inplace=True)
             elif qtype in [u'多选题']:
                 # 先变成一道题，插入表中，然后再把序号变成文本
                 tmp=data[qlist]
                 tmp=tmp.rename(columns=code[qq]['code'])
-                tmp=dataCode_to_text(tmp)             
+                tmp=dataCode_to_text(tmp)
                 ind=list(data1.columns).index(qlist[0])
                 qqname='{}({})'.format(qq,code[qq]['content'])
                 data1.insert(ind,qqname,tmp)
-                
+
                 for q in qlist:
                     data1[q].replace({0:'',1:code[qq]['code'][q]},inplace=True)
                 tmp2=['{}_{}'.format(qq,code[qq]['code'][q]) for q in qlist]
@@ -1212,7 +1213,7 @@ def save_data(data,filename=u'data.xlsx',code=None):
     elif savetype == u'csv':
         data1.to_csv(filename,index=False)
 
-        
+
 def read_data(filename):
     savetype=os.path.splitext(filename)[1][1:]
     if (savetype==u'xlsx') or (savetype==u'xls'):
@@ -1300,7 +1301,7 @@ def qdata_flatten(data,code,quesid=None,userid_begin=None):
     code: 用户的选择
     codename: 用户选择的具体值
     count: 计数
-    percent(%): 计数占比（百分比）    
+    percent(%): 计数占比（百分比）
     '''
 
     if not userid_begin:
@@ -1319,13 +1320,13 @@ def qdata_flatten(data,code,quesid=None,userid_begin=None):
             code_item.update(code[qq]['code_r'])
         else :
             code_item.update(code[qq]['code'])
-    
+
     qdata=data.stack().reset_index()
     qdata.columns=['userid','qn_an','code']
     qdata['qnum']=qdata['qn_an'].map(lambda x:x.split('_')[0])
-    qdata['itemnum']=qdata['qn_an'].map(lambda x:'_'.join(x.split('_')[1:]))     
+    qdata['itemnum']=qdata['qn_an'].map(lambda x:'_'.join(x.split('_')[1:]))
 
-    if quesid:    
+    if quesid:
         qdata['quesid']=quesid
         qdata=qdata[['userid','quesid','qnum','itemnum','code']]
     else:
@@ -1346,23 +1347,23 @@ def qdata_flatten(data,code,quesid=None,userid_begin=None):
     quesinfo['itemname']=quesinfo['qnum']+quesinfo['itemnum'].map(lambda x:'_%s'%x)
     quesinfo['itemname']=quesinfo['itemname'].replace(code_item)
     #quesinfo['itemname']=quesinfo['qn_an'].map(lambda x: code[x.split('_')[0]]['code_r'][x] if \
-     #code[x.split('_')[0]]['qtype']=='矩阵单选题' else code[x.split('_')[0]]['code'][x])  
-    # 各个选项的含义 
+     #code[x.split('_')[0]]['qtype']=='矩阵单选题' else code[x.split('_')[0]]['code'][x])
+    # 各个选项的含义
     quesinfo['codename']=''
-    quesinfo.loc[quesinfo['code']==0,'codename']='否' 
-    quesinfo.loc[quesinfo['code']==1,'codename']='是' 
-    quesinfo['tmp']=quesinfo['qnum']+quesinfo['code'].map(lambda x:'_%s'%int(x)) 
+    quesinfo.loc[quesinfo['code']==0,'codename']='否'
+    quesinfo.loc[quesinfo['code']==1,'codename']='是'
+    quesinfo['tmp']=quesinfo['qnum']+quesinfo['code'].map(lambda x:'_%s'%int(x))
     quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='矩阵单选题'),'tmp']\
-    .map(lambda x: code[x.split('_')[0]]['code'][int(x.split('_')[1])]))    
+    .map(lambda x: code[x.split('_')[0]]['code'][int(x.split('_')[1])]))
     quesinfo['codename'].update(quesinfo.loc[(quesinfo['code']>0)&(quesinfo['qtype']=='排序题'),'tmp'].map(lambda x: 'Top{}'.format(x.split('_')[1])))
     quesinfo['begin_date']=begin_date
-    quesinfo['end_date']=end_date        
-    if quesid:    
+    quesinfo['end_date']=end_date
+    if quesid:
         quesinfo['quesid']=quesid
         quesinfo=quesinfo[['quesid','begin_date','end_date','qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
     else:
-        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]    
-        
+        quesinfo=quesinfo[['qnum','qname','qtype','samplelen','itemnum','itemname','code','codename','count','percent(%)']]
+
     # 排序
     quesinfo['qnum']=quesinfo['qnum'].astype('category')
     quesinfo['qnum'].cat.set_categories(sorted(list(quesinfo['qnum'].unique()),key=lambda x:int(re.findall('\d+',x)[0])), inplace=True)
@@ -1400,7 +1401,7 @@ def sample_size_cal(interval,N,alpha=0.05):
         samplesize=samplesize*N/(samplesize+N)
     samplesize=int(round(samplesize))
     return samplesize
-    
+
 
 def gof_test(fo,fe=None,alpha=0.05):
     '''拟合优度检验
@@ -1417,8 +1418,8 @@ def gof_test(fo,fe=None,alpha=0.05):
     fo=np.array(fo).flatten()
     C=len(fo)
     if not fe:
-        N=fo.sum() 
-        fe=np.array([N/C]*C)        
+        N=fo.sum()
+        fe=np.array([N/C]*C)
     else:
         fe=np.array(fe).flatten()
     chi_value=(fo-fe)**2/fe
@@ -1466,22 +1467,22 @@ def anova(data,formula):
     输入
     --data： DataFrame格式，包含数值型变量和分类型变量
     --formula：变量之间的关系，如：数值型变量~C(分类型变量1)[+C(分类型变量1)[+C(分类型变量1):(分类型变量1)]
-    
+
     返回[方差分析表]
     [总体的方差来源于组内方差和组间方差，通过比较组间方差和组内方差的比来推断两者的差异]
     --df:自由度
     --sum_sq：误差平方和
     --mean_sq：误差平方和/对应的自由度
     --F：mean_sq之比
-    --PR(>F)：p值，比如<0.05则代表有显著性差异   
-    '''       
+    --PR(>F)：p值，比如<0.05则代表有显著性差异
+    '''
     import statsmodels.api as sm
     from statsmodels.formula.api import ols
     cw_lm=ols(formula, data=data).fit() #Specify C for Categorical
     r=sm.stats.anova_lm(cw_lm)
     return r
-    
-    
+
+
 def mca(X,N=2):
     '''对应分析函数，暂时支持双因素
     X：观察频数表
@@ -1498,7 +1499,7 @@ def mca(X,N=2):
     D_r = np.diag(1/np.sqrt(r))
     Z_c = Z - np.outer(r, c)  # standardized residuals matrix
     D_c = np.diag(1/np.sqrt(c))
-    
+
     # another option, not pursued here, is sklearn.decomposition.TruncatedSVD
     P,s,Q = np.linalg.svd(np.dot(np.dot(D_r, Z_c),D_c))
     #S=diagsvd(s[:2],P.shape[0],2)
@@ -1520,27 +1521,27 @@ def mca(X,N=2):
 def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
     '''对态度题进行聚类
     '''
-    
+
     from sklearn.cluster import KMeans
     #from sklearn.decomposition import PCA
     from sklearn import metrics
     #import prince
     qq_max=sorted(code,key=lambda x:int(re.findall('\d+',x)[0]))[-1]
     new_cluster='Q{}'.format(int(re.findall('\d+',qq_max)[0])+1)
-    #new_cluster='Q32'   
-    
+    #new_cluster='Q32'
+
     qlist=code[cluster_qq]['qlist']
     X=data[qlist]
     # 去除所有态度题选择的分数都一样的用户（含仅有两个不同）
-    std_t=min(1.41/np.sqrt(len(qlist)),0.40) if len(qlist)>=8 else 0.10 
+    std_t=min(1.41/np.sqrt(len(qlist)),0.40) if len(qlist)>=8 else 0.10
     X=X[X.T.std()>std_t]
     index_bk=X.index#备份，方便还原
     X.fillna(0,inplace=True)
     X1=X.T
     X1=(X1-X1.mean())/X1.std()
     X1=X1.T.as_matrix()
-  
-    
+
+
     if n_clusters == 'auto':
         #聚类个数的选取和评估
         silhouette_score=[]# 轮廊系数
@@ -1550,7 +1551,7 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
             est = KMeans(k)  # 4 clusters
             est.fit(X1)
             tmp=np.sum((X1-est.cluster_centers_[est.labels_])**2)
-            SSE_score.append(tmp)    
+            SSE_score.append(tmp)
             tmp=metrics.silhouette_score(X1, est.labels_)
             silhouette_score.append(tmp)
         '''
@@ -1561,7 +1562,7 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
         ax = fig.add_subplot(111)
         ax.plot(klist,np.array(SSE_score))
         '''
-        # 找轮廊系数的拐点     
+        # 找轮廊系数的拐点
         ss=np.array(silhouette_score)
         t1=[False]+list(ss[1:]>ss[:-1])
         t2=list(ss[:-1]>ss[1:])+[False]
@@ -1574,17 +1575,17 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
         k_best=klist[k]
     else:
         k_best=n_clusters
-    
+
     est = KMeans(k_best)  # 4 clusters
     est.fit(X1)
-    
+
     # 系数计算
     SSE=np.sqrt(np.sum((X1-est.cluster_centers_[est.labels_])**2)/len(X1))
     silhouette_score=metrics.silhouette_score(X1, est.labels_)
-    
+
     print('有效样本数:{},特征数：{},最佳分类个数：{} 类'.format(len(X1),len(qlist),k_best))
     print('SSE(样本到所在类的质心的距离)为：{:.2f},轮廊系数为: {:.2f}'.format(SSE,silhouette_score))
-    
+
     # 绘制降维图
     '''
     X_PCA = PCA(2).fit_transform(X1)
@@ -1600,8 +1601,8 @@ def cluster(data,code,cluster_qq,n_clusters='auto',max_clusters=7):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(X_PCA[:, 0], X_PCA[:, 1],X_PCA[:, 2], c=labels, **kwargs)
-    '''   
-    
+    '''
+
     # 导出到原数据
     parameters={'methods':'kmeans','inertia':est.inertia_,'SSE':SSE,'silhouette':silhouette_score,\
       'n_clusters':k_best,'n_features':len(qlist),'n_samples':len(X1),'qnum':new_cluster,\
@@ -1653,7 +1654,7 @@ def scatter(data,legend=False,title=None,font_ch=None,find_path=None):
     color=['blue','red','green','dark']
     if not isinstance(data,list):
         data=[data]
-    for i,dd in enumerate(data):     
+    for i,dd in enumerate(data):
         ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
                    label=dd.columns[1])
         for _, row in dd.iterrows():
@@ -1681,7 +1682,7 @@ def sankey(df,filename=None):
     Energy=c(links=links,nodes=nodes)
     sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
                   Target = "target", Value = "value", NodeID = "name",
-                  units = "TWh",fontSize = 20,fontFamily='微软雅黑',nodeWidth=20) 
+                  units = "TWh",fontSize = 20,fontFamily='微软雅黑',nodeWidth=20)
     '''
     nodes=['Total']
     nodes=nodes+list(df.columns)+list(df.index)
@@ -1696,7 +1697,7 @@ def sankey(df,filename=None):
     links0=pd.DataFrame({'from':[0]*C,'to':range(1,C+1),'value':list(df.sum())})
     links=links0.append(links)
     if filename:
-        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')        
+        links.to_csv(filename+'_links.csv',index=False,encoding='utf-8')
         nodes.to_csv(filename+'_nodes.csv',index=False,encoding='utf-8')
     return (links,nodes)
 
@@ -1746,11 +1747,11 @@ def table(data,code,total=True):
         fop=fo.copy()
         fop=fop/sample_len
         fop.name=u'占比'
-        fo.name=u'频数'   
+        fo.name=u'频数'
         fop=pd.DataFrame(fop)
         fo=pd.DataFrame(fo)
         result['fop']=fop
-        result['fo']=fo           
+        result['fo']=fo
     elif qtype == u'矩阵单选题':
         fo=pd.DataFrame(columns=code['qlist'],index=sorted(code['code']))
         for i in fo.columns:
@@ -1824,15 +1825,15 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
     data_column:自变量，放在列中
     code_index: dict格式，指定data_index的编码等信息
     code_column: dict格式，指定data_column的编码等信息
-    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的    
+    qtype: 给定两个数据的题目类型，若为字符串则给定data_index，若为列表，则给定两个的
     返回字典格式数据
     'fop'：默认的百分比表，行是data_index,列是data_column
     'fo'：原始频数表，且添加了总体项
     'fw': 加权平均值
-    
+
     简要说明：
     因为要处理各类题型，这里将单选题处理为多选题
-    
+
     fo：观察频数表
     nij是同时选择了Ri和Cj的频数
     总体的频数是选择了Ri的频数，与所在行的总和无关
@@ -1845,8 +1846,8 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
      选择了行变量和列类别的频数。而总体的样本量为选择了行变量的频数
      fw: 加权平均值
      如果data_index的编码code含有weight字段，则我们会输出分组的加权平均值
-  
-    
+
+
     '''
 
     # 将Series转为DataFrame格式
@@ -1887,7 +1888,7 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
             qtype2=qtype[1]
         elif isinstance(qtype,str):
             qtype1=qtype
-    if qtype1 == u'单选题':        
+    if qtype1 == u'单选题':
         data_index=sa_to_ma(data_index)
         qtype1=u'多选题'
     # 将单选题变为多选题
@@ -1935,7 +1936,7 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
             if column_freq[i]!=0:
                 t.loc[:,i]=t.loc[:,i]/column_freq[i]
         result['fop']=t
-        result['fo']=t1              
+        result['fo']=t1
     elif (qtype1 == u'矩阵单选题') and (qtype2 == u'多选题'):
         if code_index and ('weight' in code_index):
             data_index.replace(code_index['weight'],inplace=True)
@@ -1981,7 +1982,7 @@ def crosstab(data_index,data_column,code_index=None,code_column=None,qtype=None,
         result['fop'].drop(['总体'],axis=1,inplace=True)
     # 顺序重排
     if not(result['fo'] is None) and code_index and ('code_order' in code_index) and qtype1!='矩阵单选题':
-        code_order=code_index['code_order']       
+        code_order=code_index['code_order']
         code_order=[q for q in code_order if q in result['fo'].index]
         if u'总体' in result['fo'].index:
             code_order=code_order+[u'总体']
@@ -2103,8 +2104,8 @@ def ncrosstab(data_index,data_column,code_index=None,code_column=None,qtype=None
         t=None
         t1=None
     return (t,t1)
-    
-    
+
+
 
 def qtable(data,*args,**kwargs):
     '''简易频数统计函数
@@ -2117,7 +2118,7 @@ def qtable(data,*args,**kwargs):
     qtable(data,code,'Q1')
     # 两个变量的交叉统计
     qtable(data,code,'Q1','Q2')
-    
+
     '''
     code=None
     q1=None
@@ -2147,13 +2148,13 @@ def qtable(data,*args,**kwargs):
 def association_rules(df,minSup=0.08,minConf=0.4,Y=None):
     '''关联规则分析
     df是一个观察频数表，返回其中存在的关联规则
-    
+
     '''
     try :
         import relations as rlt
     except :
         print('没有找到关联分析需要的包: import relations')
-        return (None,None,None)    
+        return (None,None,None)
     a=rlt.apriori(df, minSup, minConf)
     rules,freq=a.genRules(Y=Y)
     if rules is None:
@@ -2173,7 +2174,7 @@ def contingency(fo,alpha=0.05):
     chi_test: 卡方检验结果，1:显著；0:不显著；-1：期望值不满足条件
     coef: 包含chi2、p值、V相关系数
     log: 记录一些异常情况
-    FO: 观察频数   
+    FO: 观察频数
     FE: 期望频数
     TGI：fo/fe
     TWI：fo-fe
@@ -2240,10 +2241,10 @@ def contingency(fo,alpha=0.05):
     ind1=fo.sum(axis=1)>=threshold
     ind2=fo.sum()>=threshold
     fo=fo.loc[ind1,ind2]
-    
+
     if (fo.shape[0]<=1) or (np.any(fo.sum()==0)) or (np.any(fo.sum(axis=1)==0)):
         significant['result']=-2
-        significant['pvalue']=-2           
+        significant['pvalue']=-2
         significant['method']='fo not frequency'
     #elif ((fo<=5).sum().sum()>=threshold):
         #significant['result']=-1
@@ -2282,7 +2283,7 @@ def contingency(fo,alpha=0.05):
     #print('the std of CHI is %.2f'%summary['chi_std'])
     conclusion=''
     fo_rank=fo.sum().rank(ascending=False)# 给列选项排名，只分析排名在前4选项的差异
-    for c in fo_rank[fo_rank<5].index:#CHI.columns:        
+    for c in fo_rank[fo_rank<5].index:#CHI.columns:
         #针对每一列，选出大于一倍方差的行选项，如果过多，则只保留前三个
         tmp=list(CHI.loc[CHI[c]-summary['chi_mean']>summary['chi_std'],c].sort_values(ascending=False)[:3].index)
         tmp=['%s'%s for s in tmp]# 把全部内容转化成字符串
@@ -2324,7 +2325,7 @@ def pre_cross_qlist(data,code):
         qtype=code[qq]['qtype']
         qlist=code[qq]['qlist']
         content=code[qq]['content']
-        sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum() 
+        sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
         if qtype not in ['单选题']:
             continue
         if not(set(qlist) <= set(data.columns)):
@@ -2428,7 +2429,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
     # ================I/O接口=============================
     # pptx 接口
     prs=rpt.Report(template) if template else rpt.Report()
-    
+
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     # 生成数据接口(因为exec&eval)
@@ -2439,24 +2440,24 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             Writer_save[u'Writer_'+dstyle]=pd.ExcelWriter('.\\out\\'+filename+u'_'+dstyle+'.xlsx')
 
     result={}#记录每道题的的统计数据，用户函数的返回数据
-    
+
     # 记录没到题目的样本数和显著性差异检验结果，用于最后的数据输出
     cross_columns=list(cross_class_freq.index)
     cross_columns=[r for r in cross_columns if r!=u'合计']
     cross_columns=['内容','题型']+cross_columns+[u'总体',u'显著性检验']
     conclusion=pd.DataFrame(index=cross_qlist,columns=cross_columns)
     conclusion.to_excel(Writer,u'索引')
-    
+
     # ================封面页=============================
     prs.add_cover(title=filename)
-    
+
     # ================背景页=============================
     title=u'说明'
     summary=u'交叉题目为'+cross_class+u': '+code[cross_class]['content']
-    summary=summary+'\n'+u'各类别样本量如下：'   
+    summary=summary+'\n'+u'各类别样本量如下：'
     prs.add_slide(data={'data':cross_class_freq,'slide_type':'table'},title=title,\
                   summary=summary)
-    
+
     data_column=data[code[cross_class]['qlist']]
     for qq in cross_qlist:
         # 遍历所有题目
@@ -2487,7 +2488,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
             qsample=result_t['sample_size']
         else:
             continue
-        
+
         if t is None:
             continue
 
@@ -2543,7 +2544,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
         if (abs(1-plt_data.sum())<=0.01+1e-17).all():
             plt_data=plt_data*100
 
-        
+
         # ========================【特殊题型处理区】================================
         if 'fw' in result_t:
             plt_data=result_t['fw']
@@ -2557,7 +2558,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
         if plt_dstyle and isinstance(cdata,dict) and (plt_dstyle in cdata):
             plt_data=cdata[plt_dstyle]
-        
+
         # 绘制PPT
         title=qq+'['+qtype+']: '+qtitle
         if not summary:
@@ -2572,11 +2573,11 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
 
         # 保存相关数据
         conclusion.loc[qq,:]=qsample
-        conclusion.loc[qq,[u'内容',u'题型']]=pd.Series({u'内容':code[qq]['content'],u'题型':code[qq]['qtype']})            
+        conclusion.loc[qq,[u'内容',u'题型']]=pd.Series({u'内容':code[qq]['content'],u'题型':code[qq]['qtype']})
         conclusion.loc[qq,u'显著性检验']=sing_result
-                                 
+
         if (not total_display) and (u'总体' in plt_data.columns):
-            plt_data.drop([u'总体'],axis=1,inplace=True)       
+            plt_data.drop([u'总体'],axis=1,inplace=True)
 
         if len(plt_data)>max_column_chart:
             prs.add_slide(data={'data':plt_data[::-1],'slide_type':'chart','type':'BAR_CLUSTERED'},\
@@ -2606,7 +2607,7 @@ total_display=True,max_column_chart=20,save_dstyle=None,template=None):
                 else:
                     #code_order=[q for q in code_order if q in t.index]
                     plt_data=pd.DataFrame(plt_data,index=code_order)
-            plt_data.fillna(0,inplace=True)                                                                      
+            plt_data.fillna(0,inplace=True)
             title='[TOP1]' + title
             if len(plt_data)>max_column_chart:
                 prs.add_slide(data={'data':plt_data[::-1],'slide_type':'chart','type':'BAR_CLUSTERED'},\
@@ -2650,7 +2651,7 @@ max_column_chart=20,template=None):
             summary_qlist=list(sorted(code,key=lambda c: int(re.findall('\d+',c)[0])))
         except:
             summary_qlist=list(code.keys())
-            
+
     # =================基本数据获取==========================
     #统一的有效样本，各个题目可能有不能的样本数
     sample_len=len(data)
@@ -2658,11 +2659,11 @@ max_column_chart=20,template=None):
     # ================I/O接口=============================
     # pptx 接口
     prs=rpt.Report(template) if template else rpt.Report()
-    
+
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
     Writer=pd.ExcelWriter('.\\out\\'+filename+'.xlsx')
-    
+
     result={}#记录每道题的过程数据
     # 记录样本数等信息，用于输出
     conclusion=pd.DataFrame(index=summary_qlist,columns=[u'内容',u'题型',u'样本数'])
@@ -2683,7 +2684,7 @@ max_column_chart=20,template=None):
     w['置信区间']=w['置信区间'].map(lambda x:'±{:.1f}%'.format(x*100))
     w['比例']=w['比例'].map(lambda x:'{:.0f}% / {:.0f}%'.format(x*100,100-100*x))
     w=w.set_index('比例')
-    prs.add_slide(data={'data':w,'slide_type':'table'},title=title,summary=summary)    
+    prs.add_slide(data={'data':w,'slide_type':'table'},title=title,summary=summary)
 
 
     for qq in summary_qlist:
@@ -2698,7 +2699,7 @@ max_column_chart=20,template=None):
         if not(set(qlist) <= set(data.columns)):
             continue
         sample_len_qq=data[code[qq]['qlist']].notnull().T.any().sum()
-        
+
         conclusion.loc[qq,u'内容']=qtitle
         conclusion.loc[qq,u'题型']=qtype
         conclusion.loc[qq,u'样本数']=sample_len_qq
@@ -2709,7 +2710,7 @@ max_column_chart=20,template=None):
                 tmp=pd.DataFrame(data[qqlist].value_counts()).reset_index()
                 tmp.to_excel(Writer,qq,startcol=startcols,index=False)
                 startcols+=3
-            continue              
+            continue
         if qtype not in [u'单选题',u'多选题',u'排序题',u'矩阵单选题']:
             continue
         try:
@@ -2730,13 +2731,13 @@ max_column_chart=20,template=None):
             t1=pd.DataFrame(t1,index=code_order)
         t.fillna(0,inplace=True)
         t1.fillna(0,inplace=True)
-        
+
         # =======保存到Excel中========
         Writer_rows=0
         t2=pd.concat([t,t1],axis=1)
         t2.to_excel(Writer,qq,startrow=Writer_rows,index_label=qq,float_format='%.3f')
         Writer_rows+=len(t2)+2
-        
+
         # ==========根据个题型提取结论==================
         summary=''
         if qtype in ['单选题','多选题']:
@@ -2766,7 +2767,7 @@ max_column_chart=20,template=None):
             aso_result,rules,freq=association_rules(tmp,minSup=minSup,minConf=minConf)
             numItem_mean=t1.sum().sum()/sample_len_qq
             if u'合计' in t1.index:
-                numItem_mean=numItem_mean/2            
+                numItem_mean=numItem_mean/2
             if aso_result:
                 summary+=' || 平均每个样本选了{:.1f}个选项 || 找到的关联规则如下(只显示TOP4)：\n{}'.format(numItem_mean,aso_result)
                 rules.to_excel(Writer,qq,startrow=Writer_rows,index=False,float_format='%.3f')
@@ -2795,9 +2796,9 @@ max_column_chart=20,template=None):
         if u'合计' in plt_data.index:
             plt_data.drop([u'合计'],axis=0,inplace=True)
         result[qq]=plt_data
-        title=qq+'['+qtype+']: '+qtitle       
+        title=qq+'['+qtype+']: '+qtitle
 
-            
+
         footnote=u'数据来源于%s,样本N=%d'%(qq,sample_len_qq)
         # 绘制图表plt_data一般是Series，对于矩阵单选题，其是DataFrame
 
@@ -2806,7 +2807,7 @@ max_column_chart=20,template=None):
                           title=title,summary=summary,footnote=footnote)
         elif (len(t)>3) or (len(plt_data.shape)>1 and plt_data.shape[1]>1):
             prs.add_slide(data={'data':plt_data,'slide_type':'chart','type':'COLUMN_CLUSTERED'},\
-                          title=title,summary=summary,footnote=footnote)                    
+                          title=title,summary=summary,footnote=footnote)
         else:
             prs.add_slide(data={'data':plt_data,'slide_type':'chart','type':'PIE'},\
                           title=title,summary=summary,footnote=footnote)
@@ -2814,8 +2815,8 @@ max_column_chart=20,template=None):
 
 
 
-            
-            
+
+
         #==============特殊题型处理===============
         # 矩阵单选题特殊处理
         if (qtype == u'矩阵单选题') and ('fw' in result_t):
@@ -2834,14 +2835,14 @@ max_column_chart=20,template=None):
                               title=title,summary=summary,footnote=footnote)
 
 
-                
+
         # 排序题特殊处理
         if (qtype == u'排序题') and ('TOPN' in result_t):
             plt_data=result_t['TOPN']
             # 将频数和频数百分表保存至本地
             tmp=pd.concat([result_t['TOPN'],result_t['TOPN_fo']],axis=1)
             tmp.to_excel(Writer,qq,startrow=Writer_rows,float_format='%.3f')
-            
+
             Writer_rows=len(plt_data)+2
             plt_data=plt_data*100
             # =======数据修正==============
@@ -2852,7 +2853,7 @@ max_column_chart=20,template=None):
                     code_order=code_order+[u'合计']
                 plt_data=pd.DataFrame(plt_data,index=code_order)
             plt_data.fillna(0,inplace=True)
-                         
+
             title='[TOPN]'+title
             if len(plt_data)>max_column_chart:
                 prs.add_slide(data={'data':plt_data[::-1],'slide_type':'chart','type':'BAR_STACKED'},\
@@ -2895,14 +2896,14 @@ def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None)
         save_dstyle=save_dstyle,template=template);
         print('已生成 '+filename)
     return None
-    
+
 def scorpion(data,code,filename='scorpion'):
     '''天蝎X计划
     返回一个excel文件
     1、索引
     2、各个题目的频数表
-    3、所有可能的交叉分析    
-    '''  
+    3、所有可能的交叉分析
+    '''
 
     if not os.path.exists('.\\out'):
         os.mkdir('.\\out')
@@ -2913,7 +2914,7 @@ def scorpion(data,code,filename='scorpion'):
         qqlist=list(code.keys())
     qIndex=pd.DataFrame(index=qqlist,columns=[u'content',u'qtype',u'SampleSize'])
     qIndex.to_excel(Writer,u'索引')
-    
+
     # 生成索引表和频数表
     Writer_rows=0
     for qq in qqlist:
@@ -2932,7 +2933,7 @@ def scorpion(data,code,filename='scorpion'):
             result_t=table(data[qlist],code=code[qq])
         except:
             print(u'脚本处理 {} 时出了一点小问题.....'.format(qq))
-            continue         
+            continue
         fop=result_t['fop']
         fo=result_t['fo']
         if (qtype == u'排序题') and ('TOPN' in result_t):
@@ -2947,9 +2948,9 @@ def scorpion(data,code,filename='scorpion'):
         fo_fop.to_excel(Writer,u'频数表',startrow=Writer_rows,startcol=1,index_label=code[qq]['content'],float_format='%.3f')
         tmp=pd.DataFrame({'name':[qq]})
         tmp.to_excel(Writer,u'频数表',index=False,header=False,startrow=Writer_rows)
-        Writer_rows+=len(fo_fop)+3   
+        Writer_rows+=len(fo_fop)+3
     qIndex.to_excel(Writer,'索引')
-    
+
     crossAna=pd.DataFrame(columns=['RowVar','ColVar','SampleSize','pvalue','significant','summary'])
     N=0
     qqlist=[qq for qq in qqlist if code[qq]['qtype'] in ['单选题','多选题','矩阵单选题','排序题']]
@@ -2993,6 +2994,6 @@ def scorpion(data,code,filename='scorpion'):
                 summary='没有找到结论'
             crossAna.loc[N,:]=[qq1,qq2,samplesize,pvalue,result,summary]
             N+=1
-    crossAna.to_excel(Writer,'交叉分析表',index=False)            
-    
+    crossAna.to_excel(Writer,'交叉分析表',index=False)
+
     Writer.save()

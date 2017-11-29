@@ -1,21 +1,24 @@
 reportgen
 ===========
 
-Release v0.1.3
+Release v0.1.5
 
 *reportgen* is a Python library for creating and updating analysis report.
 
 Release History
 ------------------
-0.1.3(2017-11-22)
+0.1.5(2017-11-29)
 
-- fix some bug.
+- Add function AnalysisReport, it can plot the general data to pptx files.
+- Fix some bugs.
+
+0.1.1(2017-11-19)
+
+- fix some bugs.
 
 0.1.0(2017-11-18)
 
 - Create.
-
-
 
 Feature Support
 ------------------
@@ -48,24 +51,24 @@ Quick Start
 ::
 
   import reportgen as rpt
-  import pandas as pd
-  # Open a pptx file
-  p=rpt.Report('template.pptx')# The parameters can be defaulted
-  # add a cover
-  p.add_cover(title='A analysis report powered by reportgen')
-  # add a chart slide
-  data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
-  p.add_slide(data={'data':data,'slide_type':'chart','type':'COLUMN_CLUSTERED'},\
-  title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
+	import pandas as pd
+	# Open a pptx file
+	p=rpt.Report('template.pptx')# The parameters can be defaulted
+	# add a cover
+	p.add_cover(title='A analysis report powered by reportgen')
+	# add a chart slide
+	data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
+	p.add_slide(data={'data':data,'slide_type':'chart','type':'COLUMN_CLUSTERED'},\
+	title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
   # add a table slide
-  data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
-  p.add_slide(data={'data':data,'slide_type':'table'},title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
-  # add a textbox slide
-  data='This a paragraph. \n'*4
-  p.add_slide(data={'data':data,'slide_type':'textbox'},title='This is a textbox slide',summary='',footnote='')
-  # add a picture slide
-  data='.\\images\\images.png'
-  p.add_slide(data={'data':data,'slide_type':'picture'},title='This is a picture slide')
+	data=pd.DataFrame({'Jack':[90,80,100],'David':[100,70,85]},index=['Math','English','Physics'])
+	p.add_slide(data={'data':data,'slide_type':'table'},title='the scores report',summary='Our class got excellent results',footnote='This is a footnote.')
+	# add a textbox slide
+	data='This a paragraph. \n'*4
+	p.add_slide(data={'data':data,'slide_type':'textbox'},title='This is a textbox slide',summary='',footnote='')
+	# add a picture slide
+	data='.\\images\\images.png'
+	p.add_slide(data={'data':data,'slide_type':'picture'},title='This is a picture slide')
   p.save('analysis report.pptx')
 
 
@@ -106,8 +109,26 @@ As a lazy person, I also provide a solution with less scripts.
   p.save('add_slides.pptx')
 
 
+Now you can get a glance at any data.
+
+::
+
+  import pandas as pd
+  import reportgen as rpt
+
+  data=pd.read_excel('Scores.xlsx')
+  rpt.AnalysisReport(data,filename='Analysis Report of Scores.pptx');
+
+The scripts will make a pptx file which analysis all the fields of the data in a visual way.
+
 TO DO
 -------
 
 - support export analysis report to html
 - make the chart_type recommend more intelligence
+
+
+Contact
+--------
+
+If you have any question,you can email to gasongjian AT 126.com. And if you have a WeChat account,you can focus to my WeChat Official Account: JSong老师.
