@@ -11,5 +11,6 @@ from reportgen.report import slides_data_gen
 from reportgen import questionnaire
 from reportgen.analysis import AnalysisReport
 from reportgen.analysis import describe
+from reportgen.analysis import plot
 
-__version__ = '0.1.5'
+__version__ = '0.1.7'

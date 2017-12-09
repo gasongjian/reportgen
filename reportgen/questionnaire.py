@@ -2879,7 +2879,11 @@ def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None)
     描述统计报告
     单选题的交叉分析报告
     '''
-    summary_chart(data,code,filename=filename,template=template);
+    try:
+        summary_chart(data,code,filename=filename,template=template);
+    except:
+        print('整体报告生成过程中出现错误，将跳过..')
+        pass
     print('已生成 '+filename)
     cross_qlist=pre_cross_qlist(data,code)
     if len(cross_qlist)==0:
@@ -2892,10 +2896,15 @@ def onekey_gen(data,code,filename=u'reprotgen 报告自动生成',template=None)
         else:
             filename='{}_差异分析'.format(qq)
         save_dstyle=None #['TGI','CHI']
-        cross_chart(data,code,qq,filename=filename,cross_order=cross_order,\
-        save_dstyle=save_dstyle,template=template);
-        print('已生成 '+filename)
+        try:
+            cross_chart(data,code,qq,filename=filename,cross_order=cross_order,\
+            save_dstyle=save_dstyle,template=template);
+            print('已生成 '+filename)
+        except:
+            print(filename+'生成过程中出现错误，将跳过...')
+            pass
     return None
+
 
 def scorpion(data,code,filename='scorpion'):
     '''天蝎X计划

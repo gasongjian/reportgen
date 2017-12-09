@@ -563,8 +563,7 @@ def plot_cover(prs,title=u'reportgen工具包封面',layouts=[0,0],xspace=8,yspa
     txBox.text_frame.text='POWERED BY REPORTGEN'
 
     # 添加LOGO
-    import os
-    logo_path=os.path.join(os.path.split(__file__)[0],'logo.png')
+    logo_path=os.path.join(_thisdir,'images','logo.png')
     if os.path.exists(logo_path):
         left,top = Emu(0.65*slide_width), Emu(0.94*slide_height)
         height=Emu(0.06*slide_height)
@@ -1016,8 +1015,11 @@ class Report():
                 slide.shapes.add_picture(dd['data'], left, top, height=height)
             elif slide_type in ['chart']:
                 # 插入图表
-                chart_type_code=chart_list[chart_type][1]
-                chart_data=df_to_chartdata(dd['data'],chart_type_code)
+                chart_type_code=chart_list[chart_type][1]   
+                if 'pptx.chart.data.ChartData' in str(type(dd['data'])):
+                    chart_data=dd['data']
+                else:                               
+                    chart_data=df_to_chartdata(dd['data'],chart_type_code)
                 chart=slide.shapes.add_chart(chart_list[chart_type.upper()][0],left, top, width, height, chart_data).chart
 
                 if chart_type_code in [-4169,72,73,74,75]:

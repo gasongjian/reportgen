@@ -18,7 +18,7 @@ from pandas.api.types import is_datetime64_any_dtype
 from pandas.api.types import is_categorical_dtype
 
 
-from . import report as rpt
+from . import report as _rpt
 from . import config
 from .report import genwordcloud
 
@@ -36,8 +36,7 @@ if font_path:
 
 
 def dtype_detection(columns,data=None,category_detection=False):
-    '''
-    检测数据的列变量数据类型
+    '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
     1. number,数值型
     2. category,因子
@@ -48,16 +47,16 @@ def dtype_detection(columns,data=None,category_detection=False):
     
     parameter
     ---------
-    columns: str,列名
+    columns: str,列名,也可以直接是Series数据
     data:pd.DataFrame类型
     # 如果有data,则函数会改变原来data的数据类型 
     
     return:
-    result:dict
-    'name':列名
-    'vtype':变量类型
-    'ordered':是否是有序因子
-    'categories':所有的因子
+    result:dict{
+        'name':列名,
+        'vtype':变量类型,
+        'ordered':是否是有序因子,
+        'categories':所有的因子}       
     
     '''
     
@@ -130,6 +129,17 @@ def dtype_detection(columns,data=None,category_detection=False):
 
 
 def var_detection(data,combine=True):
+    '''检测整个数据的变量类型
+    parameter
+    ---------
+    data: 数据,DataFrame格式
+    combine: 检测变量中是否有类似的变量，有的话则会合并。
+    
+    return
+    ------
+    var_list:[{'name':,'vtype':,'vlist':'ordered':,'categories':},]
+    
+    '''
     var_list=[]
     for c in data.columns:
         result=dtype_detection(c,data)
@@ -195,6 +205,61 @@ def describe(data):
     return result
 
 
+def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
+    '''auto choose the best chart type to draw the data
+    paremeter
+    -----------
+    figure_type: 'mpl' or 'pptx' or 'html'
+    chart_type: 'hist' or 'dist' or 'kde' or 'bar' ......
+    
+    return
+    -------
+    chart:dict format.
+    .type: equal to figure_type
+    .fig: only return if type == 'mpl'
+    .ax:
+    .chart_data:
+    .chart_type:
+    
+    '''
+    
+    # 判别部分
+    
+    # 绘制部分
+    data=pd.DataFrame(data)
+    chart={}
+    if figure_type in ['mpl','matplotlib']:
+        chart['type']='mpl'
+        if ax is None:
+            fig,ax=plt.subplots()
+        if chart_type in ['hist','kde']:
+            for c in data.columns:
+                sns.kdeplot(data[c],shade=True,ax=ax)
+            ax.legend()
+            ax.axis('auto')
+        elif chart_type in ['scatter']:
+            ax.xaxis.set_ticks_position('none')
+            ax.yaxis.set_ticks_position('none')
+            ax.axhline(y=0, linestyle='-', linewidth=1.2, alpha=0.6)
+            ax.axvline(x=0, linestyle='-', linewidth=1.2, alpha=0.6)
+            color=['blue','red','green','dark']
+            if not isinstance(data,list):
+                data=[data]
+            for i,dd in enumerate(data):     
+                ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
+                           label=dd.columns[1])
+                for _, row in dd.iterrows():
+                    ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
+            ax.axis('equal')
+            ax.legend()
+        try:
+            chart['fig']=fig
+        except:
+            pass
+        chart['ax']=ax
+        return chart
+
+
 def AnalysisReport(data,filename=None,var_list=None):
     '''
     直接生成报告
@@ -203,12 +268,20 @@ def AnalysisReport(data,filename=None,var_list=None):
         var_list=var_detection(data)
 
     slides_data=[]
-    p=rpt.Report()
     
     if filename is None:
         filename='AnalysisReport'+time.strftime('_%Y%m%d%H%M', time.localtime())
-    
-    p.add_cover(title=os.path.splitext(filename)[0])
+        p=_rpt.Report()
+        p.add_cover(title=os.path.splitext(filename)[0])
+    elif isinstance(filename,str):
+        p=_rpt.Report()
+        p.add_cover(title=os.path.splitext(filename)[0])
+    elif isinstance(filename,_rpt.Report):
+        p=filename
+        filename='AnalysisReport'+time.strftime('_%Y%m%d%H%M', time.localtime())
+    else:
+        print('reportgen.AnalysisReport::cannot understand the filename')
+        return None
     
     result=describe(data)
     slide_data={'data':result,'slide_type':'table'}

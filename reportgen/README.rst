@@ -1,12 +1,18 @@
 reportgen
 ===========
 
-Release v0.1.5
+Release v0.1.6
 
 *reportgen* is a Python library for creating and updating analysis report.
 
 Release History
 ------------------
+0.1.6(2017-12-06)
+
+- Add function rpt.plot().
+- Support drawing on the exist matplotlib figure and Report file
+- Fix some bugs.
+
 0.1.5(2017-11-29)
 
 - Add function AnalysisReport, it can plot the general data to pptx files.
@@ -131,4 +137,4 @@ TO DO
 Contact
 --------
 
-If you have any question,you can email to gasongjian AT 126.com. And if you have a WeChat account,you can focus to my WeChat Official Account: JSong老师.
+If you have any question,you can email to gasongjian AT 126.com. And if you have a WeChat account,you can focus to my WeChat Official Account: gasongjian.

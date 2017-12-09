@@ -7,6 +7,7 @@ Created on Mon Aug 14 09:39:10 2017
 
 import os
 import sys
+import pandas as pd
 
 
 _thisdir = os.path.realpath(os.path.split(__file__)[0])
@@ -35,12 +36,24 @@ template_pptx=_get_element_path('template',suffix=['pptx'])
 #template='template.pptx'
 
 
-# default font of chinese  
+# default font of chinese
+if not(os.path.exists(os.path.join(_thisdir,'font'))):
+    os.mkdir(os.path.join(_thisdir,'font'))
 font_path=_get_element_path('font',suffix=['ttf','ttc'])
 if font_path is None:
-    if sys.platform.startswith('win') and os.path.exists('C:\\windows\\fonts\\msyh.ttc'):
-        font_path='C:\\windows\\fonts\\msyh.ttc'
-        
+    if sys.platform.startswith('win'):
+        #font_path='C:\\windows\\fonts\\msyh.ttc'
+        fontlist=['calibri.ttf','simfang.ttf','simkai.ttf','simhei.ttf','simsun.ttc','msyh.ttf','MSYH.TTC','msyh.ttc']
+        for f in fontlist:
+            if os.path.exists(os.path.join('C:\\windows\\fonts\\',f)):
+                font_path=os.path.join('C:\\windows\\fonts\\',f)        
+
+chart_type_list={\
+"COLUMN_CLUSTERED":['柱状图','ChartData','pptx'],\
+"BAR_CLUSTERED":['条形图','ChartData','pptx'],
+'HIST':['分布图,KDE','XChartData','matplotlib']}
+chart_type_list=pd.DataFrame(chart_type_list)
+
 
 # PPT图表中的数字位数
 number_format_chart_1='0"%"'
