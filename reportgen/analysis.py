@@ -10,6 +10,7 @@ import numpy as np
 import re
 import time
 import os
+from collections import Iterable
 
 from pandas.api.types import is_string_dtype
 from pandas.api.types import is_numeric_dtype
@@ -72,20 +73,22 @@ def dtype_detection(columns,data=None,category_detection=False):
         
     dtype=data[c].dtype
     name=c
+    print(c)
     ordered=False
     categories=[]
+    n_sample=data[c].count()
     if is_numeric_dtype(dtype):
         vtype='number'
         ordered=False
         categories=[]
         # 纠正误分的数据类型。如将1.0，2.0，3.0都修正为1，2，3
-        if data[c].astype(np.int64).sum()==data[c].sum():
-            data[c]=data[c].astype(np.int64)
+        if data[c].dropna().astype(np.int64).sum()==data[c].dropna().sum():
+            data.loc[data[c].notnull(),c]=data.loc[data[c].notnull(),c].astype(np.int64)
         if category_detection and len(data[c].dropna().unique())<15 and data[c].value_counts().mean()>=2:
             data[c]=data[c].astype('category')
             ordered=data[c].cat.ordered
             vtype='category'
-            categories=list(data[c].cat.categories)
+            categories=list(data[c].dropna().cat.categories)
         result={'name':name,'vtype':vtype,'ordered':ordered,'categories':categories}
     elif is_string_dtype(dtype):
         
@@ -97,23 +100,29 @@ def dtype_detection(columns,data=None,category_detection=False):
             except :
                 pass
         # 处理因子类型
-        if len(data[c].dropna().unique())<np.sqrt(len(data)) and data[c].value_counts().mean()>=2:
-            data[c]=data[c].astype('category')              
+        if len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
+            data[c]=data[c].astype('category')
             
         if is_categorical_dtype(dtype):
             vtype='category'
             categories=list(data[c].cat.categories)
             ordered=data[c].cat.ordered
+        # 时间格式
         elif np.issubdtype(dtype,np.datetime64):
             vtype='datetime'
+        # 是否是结构化数组
         elif tmp.dropna().std()==0:
-            k=set(list(data[c].iloc[0]))
-            for x in data[c]:
-                k&=set(list(x))
-            if len(k)>0:
-                vtype='text_st'
-            else:
+            if not(isinstance(data[c].dropna().iloc[0],Iterable)):
                 vtype='text'
+            else:
+                k=set(list(data[c].dropna().iloc[0]))
+                for x in data[c]:
+                    if isinstance(x,str) and len(x)>0:
+                        k&=set(list(x))
+                if len(k)>0:
+                    vtype='text_st'
+                else:
+                    vtype='text'
         else:
             vtype='text'
         result={'name':name,'vtype':vtype,'ordered':ordered,'categories':categories}
@@ -297,7 +306,7 @@ def AnalysisReport(data,filename=None,var_list=None):
             fig.savefig('kdeplot1.png',dpi=200);
             fig.clf()
             fig, axes = plt.subplots(1,1)
-            sns.distplot(data[name],ax=axes);
+            sns.distplot(data[name].dropna(),ax=axes);
             fig.savefig('kdeplot2.png',dpi=200)
             fig.clf()
             summary='''平均数为：{:.2f}，标准差为：{:.2f}，最大为：{}'''\
@@ -332,14 +341,19 @@ def AnalysisReport(data,filename=None,var_list=None):
             p.add_slide(data=slide_data,title=name+' 的分析',summary=summary,footnote=footnote)
             slides_data.append(slide_data)
         elif vtype == 'text':
-            tmp=','.join(data[name].dropna())
-            img=genwordcloud(tmp,font_path=font_path)
-            img.save('tmp.png')
-            footnote='注: 样本N={}'.format(data[name].count())
-            slide_data={'data':'tmp.png','slide_type':'picture'}
-            p.add_slide(data=slide_data,title=name+' 的词云分析',footnote=footnote)
-            slides_data.append(slide_data)
-            os.remove('tmp.png')
+            try:
+                tmp=','.join(data[name].dropna())
+                if len(tmp)>1:
+                    img=genwordcloud(tmp,font_path=font_path)
+                    img.save('tmp.png')
+                    footnote='注: 样本N={}'.format(data[name].count())
+                    slide_data={'data':'tmp.png','slide_type':'picture'}
+                    p.add_slide(data=slide_data,title=name+' 的词云分析',footnote=footnote)
+                    slides_data.append(slide_data)
+                    os.remove('tmp.png')                    
+            except:
+                print('cannot understand : {}'.format(name))
+                pass
         elif vtype == 'group_number':
             tmp=pd.DataFrame(data.loc[:,vlist].mean())
             footnote='注: 样本N={}'.format(data.loc[:,vlist].count().max())
