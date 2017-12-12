@@ -94,6 +94,7 @@ def dtype_detection(columns,data=None,category_detection=False):
         
         # 处理时间类型
         tmp=data[c].map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
+        tmp=tmp.dropna().astype(np.int64)
         if not(any(data[c].dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
                 data[c]=pd.to_datetime(data[c])
