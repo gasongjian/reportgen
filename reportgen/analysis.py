@@ -36,7 +36,7 @@ if font_path:
 
 
 
-def dtype_detection(columns,data=None,category_detection=False):
+def dtype_detection(columns,data=None,category_detection=True):
     '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
     1. number,数值型
@@ -73,7 +73,6 @@ def dtype_detection(columns,data=None,category_detection=False):
         
     dtype=data[c].dtype
     name=c
-    print(c)
     ordered=False
     categories=[]
     n_sample=data[c].count()
@@ -156,7 +155,7 @@ def var_detection(data,combine=True):
         if result is not None:
             var_list.append(result)
     if not(combine):
-        return var_list           
+        return var_list,data
     var_group=[]
     i=0
     pattern=re.compile(r'(.*?)(\d+)')
@@ -201,7 +200,7 @@ def var_detection(data,combine=True):
         elif i in var_group_total and v['name'] not in var_list_have:
             var_list_new.append(var_group_new[i])
             var_list_have+=var_group_new[i]['vlist']
-    return var_list_new
+    return var_list_new,data
                 
 def describe(data):
     '''
@@ -244,7 +243,12 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
             fig,ax=plt.subplots()
         if chart_type in ['hist','kde']:
             for c in data.columns:
-                sns.kdeplot(data[c],shade=True,ax=ax)
+                sns.kdeplot(data[c].dropna(),shade=True,ax=ax)
+            ax.legend()
+            ax.axis('auto')
+        elif chart_type in ['dist']:
+            for c in data.columns:
+                sns.distplot(data[c].dropna(),ax=ax)
             ax.legend()
             ax.axis('auto')
         elif chart_type in ['scatter']:
@@ -255,11 +259,12 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
             color=['blue','red','green','dark']
             if not isinstance(data,list):
                 data=[data]
-            for i,dd in enumerate(data):     
-                ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
-                           label=dd.columns[1])
-                for _, row in dd.iterrows():
-                    ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
+            for i,dd in enumerate(data):
+                if '%s'%dd.iloc[:,0] != 'nan' or '%s'%dd.iloc[:,1] != 'nan':
+                    ax.scatter(dd.iloc[:,0], dd.iloc[:,1], c=color[i], s=50,
+                               label=dd.columns[1])
+                    for _, row in dd.iterrows():
+                        ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
             ax.axis('equal')
             ax.legend()
         try:
@@ -275,7 +280,9 @@ def AnalysisReport(data,filename=None,var_list=None):
     直接生成报告
     '''
     if var_list is None:
-        var_list=var_detection(data)
+        var_list,data=var_detection(data)
+        print(var_list)
+        print('============')
 
     slides_data=[]
     
@@ -301,15 +308,14 @@ def AnalysisReport(data,filename=None,var_list=None):
         vtype=v['vtype']
         name=v['name']
         vlist=v['vlist']
+        print(name,':',vtype)
         if vtype == 'number':
-            fig, axes = plt.subplots(1,1);
-            sns.kdeplot(data[name],shade=True,legend=True,ax=axes);
-            fig.savefig('kdeplot1.png',dpi=200);
-            fig.clf()
-            fig, axes = plt.subplots(1,1)
-            sns.distplot(data[name].dropna(),ax=axes);
-            fig.savefig('kdeplot2.png',dpi=200)
-            fig.clf()
+            chart=plot(data[name],figure_type='mpl',chart_type='kde')
+            chart['fig'].savefig('kdeplot1.png',dpi=200)
+            chart['fig'].clf()
+            chart=plot(data[name],figure_type='mpl',chart_type='dist')
+            chart['fig'].savefig('kdeplot2.png',dpi=200)
+            chart['fig'].clf()
             summary='''平均数为：{:.2f}，标准差为：{:.2f}，最大为：{}'''\
             .format(data[name].mean(),data[name].std(),data[name].max())
             footnote='注: 样本N={}'.format(data[name].count())
@@ -329,7 +335,7 @@ def AnalysisReport(data,filename=None,var_list=None):
             p.add_slide(data=slide_data,title=name+' 的分析',summary=summary,footnote=footnote)
             slides_data.append(slide_data)
         elif vtype == 'datetime':
-            if data[name].value_counts.max()==1:
+            if data[name].value_counts().max()==1:
                 print('the dtype of {} column is datetime, continue...')
                 continue
             tmp=pd.DataFrame(data[name].astype('object').value_counts())
