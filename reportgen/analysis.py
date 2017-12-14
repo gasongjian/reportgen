@@ -36,7 +36,7 @@ if font_path:
 
 
 
-def dtype_detection(columns,data=None,category_detection=True):
+def dtype_detection(columns,data=None,category_detection=True,StructureText_detection=True):
     '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
     1. number,数值型
@@ -83,14 +83,13 @@ def dtype_detection(columns,data=None,category_detection=True):
         # 纠正误分的数据类型。如将1.0，2.0，3.0都修正为1，2，3
         if data[c].dropna().astype(np.int64).sum()==data[c].dropna().sum():
             data.loc[data[c].notnull(),c]=data.loc[data[c].notnull(),c].astype(np.int64)
-        if category_detection and len(data[c].dropna().unique())<15 and data[c].value_counts().mean()>=2:
+        if category_detection and len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
             data[c]=data[c].astype('category')
             ordered=data[c].cat.ordered
             vtype='category'
             categories=list(data[c].dropna().cat.categories)
         result={'name':name,'vtype':vtype,'ordered':ordered,'categories':categories}
     elif is_string_dtype(dtype):
-        
         # 处理时间类型
         tmp=data[c].map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
         tmp=tmp.dropna().astype(np.int64)
@@ -99,19 +98,26 @@ def dtype_detection(columns,data=None,category_detection=True):
                 data[c]=pd.to_datetime(data[c])
             except :
                 pass
-        # 处理因子类型
+      
+        
+        # 处理可能的因子类型
         if len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
             data[c]=data[c].astype('category')
             
-        if is_categorical_dtype(dtype):
+        # 在非因子类型的前提下，将百分数转化成浮点数，例如21.12%-->0.2112
+        if is_string_dtype(data[c].dtype) and not(is_categorical_dtype(data[c].dtype)) and all(data[c].str.contains('%')):
+            data[c]=data[c].str.strip('%').astype(np.float64)/100
+            
+        if is_categorical_dtype(data[c].dtype):
             vtype='category'
             categories=list(data[c].cat.categories)
             ordered=data[c].cat.ordered
         # 时间格式
-        elif np.issubdtype(dtype,np.datetime64):
+        elif np.issubdtype(data[c].dtype,np.datetime64):
             vtype='datetime'
         # 是否是结构化数组
-        elif tmp.dropna().std()==0:
+        elif StructureText_detection and tmp.dropna().std()==0:
+            # 不可迭代，不是字符串
             if not(isinstance(data[c].dropna().iloc[0],Iterable)):
                 vtype='text'
             else:
@@ -123,6 +129,10 @@ def dtype_detection(columns,data=None,category_detection=True):
                     vtype='text_st'
                 else:
                     vtype='text'
+        elif is_numeric_dtype(data[c].dtype):
+            vtype='number'
+            ordered=False
+            categories=[]
         else:
             vtype='text'
         result={'name':name,'vtype':vtype,'ordered':ordered,'categories':categories}
@@ -281,8 +291,8 @@ def AnalysisReport(data,filename=None,var_list=None):
     '''
     if var_list is None:
         var_list,data=var_detection(data)
-        print(var_list)
-        print('============')
+        #print(var_list)
+        #print('============')
 
     slides_data=[]
     
@@ -308,7 +318,7 @@ def AnalysisReport(data,filename=None,var_list=None):
         vtype=v['vtype']
         name=v['name']
         vlist=v['vlist']
-        print(name,':',vtype)
+        #print(name,':',vtype)
         if vtype == 'number':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
             chart['fig'].savefig('kdeplot1.png',dpi=200)
@@ -340,6 +350,7 @@ def AnalysisReport(data,filename=None,var_list=None):
                 continue
             tmp=pd.DataFrame(data[name].astype('object').value_counts())
             tmp=tmp*100/tmp.sum()#转换成百分数
+            tmp=tmp.sort_index()#排序
             if ('ordered' in v) and v['ordered']:
                 tmp=pd.DataFrame(tmp,index=v['categories'])
             footnote='注: 样本N={}'.format(data[name].count())
