@@ -429,10 +429,10 @@ footnote=None,chart_format=None,layouts=[0,0],has_data_labels=True):
     if  ((df.sum()[df.sum()!=0]>90).all()) and ((df<=100).all().all()) and (u'总体' not in df.index):
         # 数据条的数据标签格式
         #number_format1='0.0"%"'
-        number_format1=config.number_format_chart_1
+        number_format1=config.number_format_data
         # 坐标轴的数据标签格式
         #number_format2='0"%"'
-        number_format2=config.number_format_chart_label
+        number_format2=config.number_format_tick
     else:
         number_format1='0.00'
         number_format2='0.0'
@@ -986,7 +986,7 @@ class Report():
             except:
                 pass
                 #print('cannot fit the size of font')
-
+        # 绘制主体部分
         for i,dd in  enumerate(data):
             slide_type=dd['slide_type']
             left,top=data_loc[i]['l'],data_loc[i]['t']
@@ -1042,9 +1042,25 @@ class Report():
                 # 添加数据标签
 
                 non_available_list=['BUBBLE','BUBBLE_THREE_D_EFFECT','XY_SCATTER','XY_SCATTER_LINES','PIE']
+                
                 # 数据标签数值格式
-                number_format1='0.00' if 'number_format_data' not in dd else dd['number_format_data']
-                number_format2='0.0' if 'number_format_tick' not in dd else dd['number_format_tick']
+                # 大致检测是否采用百分比
+                # 1、单选题每列的和肯定是100，顶多相差+-5
+                # 2、多选题每一列的和大于100，但单个的小于100.此处可能会有误判，但暂时无解
+                # 3、可能会有某一列全为0，此时单独考虑               
+                if  isinstance(dd['data'],(pd.core.frame.DataFrame,pd.core.frame.Series)) and ((dd['data'].sum()[dd['data'].sum()!=0]>90).all()) and ((dd['data']<=100).all().all()):
+                    # 数据条的数据标签格式
+                    number_format1=config.number_format_data
+                    # 坐标轴的数据标签格式
+                    number_format2=config.number_format_tick
+                else:
+                    number_format1='0.00' if 'number_format_data' not in dd else dd['number_format_data']
+                    number_format2='0.0' if 'number_format_tick' not in dd else dd['number_format_tick']
+                if 'number_format_data' in dd:
+                    number_format1=dd['number_format_data']
+                if 'number_format_tick' in dd:
+                    number_format2=dd['number_format_tick']
+                    
                 if (chart_type not in non_available_list) or (chart_type == 'PIE'):
                     plot = chart.plots[0]
                     plot.has_data_labels = True
