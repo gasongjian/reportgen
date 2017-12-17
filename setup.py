@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='reportgen',
-    version='0.1.3',
+    version='0.1.7',
     description=(
         'reportgen is a Python library for creating and updating analysis report.'
     ),
@@ -15,6 +15,15 @@ setup(
     maintainer_email='gasongjian@126.com',
     license='BSD License',
     packages=find_packages(),
+    include_package_data=True,
+        # relative to the vfclust directory
+        package_data={
+            'images':[
+                 'logo.png'],
+            'template':
+                 ['template.pptx'],
+            'font':['readme.txt']
+        },
     platforms=["all"],
     url='https://github.com/gasongjian/reportgen',
     classifiers=[
@@ -31,6 +40,7 @@ setup(
 	install_requires=[
         'pandas',
         'numpy',
+        'seaborn',
         'python-pptx',
         'Pillow'
     ]

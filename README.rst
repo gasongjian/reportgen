@@ -1,12 +1,17 @@
 reportgen
 ===========
 
-Release v0.1.6
+Release v0.1.7
 
 *reportgen* is a Python library for creating and updating analysis report.
 
 Release History
 ------------------
+0.1.8(进行中，还未发布)
+
+- Add utils,为有目标变量的数据的自动化分析打造基石.
+- Fix some bugs.
+
 0.1.6(2017-12-06)
 
 - Add function rpt.plot().

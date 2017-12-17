@@ -1,0 +1,17 @@
+MANIFEST.in
+README.rst
+setup.py
+reportgen/__init__.py
+reportgen/analysis.py
+reportgen/config.py
+reportgen/delaunay.py
+reportgen/questionnaire.py
+reportgen/report.py
+reportgen.egg-info/PKG-INFO
+reportgen.egg-info/SOURCES.txt
+reportgen.egg-info/dependency_links.txt
+reportgen.egg-info/requires.txt
+reportgen.egg-info/top_level.txt
+reportgen/font/readme.txt
+reportgen/images/logo.png
+reportgen/template/template.pptx

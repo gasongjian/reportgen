@@ -1054,8 +1054,8 @@ class Report():
                     # 坐标轴的数据标签格式
                     number_format2=config.number_format_tick
                 else:
-                    number_format1='0.00' if 'number_format_data' not in dd else dd['number_format_data']
-                    number_format2='0.0' if 'number_format_tick' not in dd else dd['number_format_tick']
+                    number_format1='0.00'
+                    number_format2='0.0'
                 if 'number_format_data' in dd:
                     number_format1=dd['number_format_data']
                 if 'number_format_tick' in dd:

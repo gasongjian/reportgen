@@ -46,7 +46,7 @@ if font_path is None:
         fontlist=['calibri.ttf','simfang.ttf','simkai.ttf','simhei.ttf','simsun.ttc','msyh.ttf','MSYH.TTC','msyh.ttc']
         for f in fontlist:
             if os.path.exists(os.path.join('C:\\windows\\fonts\\',f)):
-                font_path=os.path.join('C:\\windows\\fonts\\',f)        
+                font_path=os.path.join('C:\\windows\\fonts\\',f)
 
 chart_type_list={\
 "COLUMN_CLUSTERED":['柱状图','ChartData','pptx'],\
@@ -56,11 +56,10 @@ chart_type_list=pd.DataFrame(chart_type_list)
 
 
 # PPT图表中的数字位数
-number_format_chart_1='0"%"'
-number_format_chart_2='0.00'
+number_format_data='0"%"'
 
 # PPT图表中坐标轴的数字标签格式
-number_format_chart_label='0"%"'
+number_format_tick='0"%"'
 
 #  默认字体大小
 '''
@@ -79,9 +78,3 @@ summary_loc=[0.10,0.14,0.80,0.15]
 #  PPT中结论文本框所在的位置
 # 四个值依次为left、top、width、height
 chart_loc=[0.10,0.30,0.80,0.60]
-
-
-
-
-
-

@@ -17,12 +17,15 @@ from pandas.api.types import is_numeric_dtype
 from pandas.api.types import is_number
 from pandas.api.types import is_datetime64_any_dtype
 from pandas.api.types import is_categorical_dtype
-
+from scipy import stats
 
 from . import report as _rpt
 from . import config
 from .report import genwordcloud
 
+from .utils import iqr
+
+#from sklearn.neighbors import KernelDensity
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -36,6 +39,61 @@ if font_path:
 
 
 
+def _freedman_diaconis_bins(a):
+    """Calculate number of hist bins using Freedman-Diaconis rule."""
+    # From http://stats.stackexchange.com/questions/798/
+    a = np.asarray(a)
+    h = 2 * iqr(a) / (len(a) ** (1 / 3))
+    # fall back to sqrt(a) bins if iqr is 0
+    if h == 0:
+        return int(np.sqrt(a.size))
+    else:
+        return int(np.ceil((a.max() - a.min()) / h))
+
+
+
+def distributions(a,hist=True,bins=None,norm_hist=True,kde=True,grid=None,gridsize=100,clip=None):
+    '''数组的分布信息
+    hist=True,则返回分布直方图(counts,bins)
+    kde=True,则返回核密度估计数组(grid,y)
+
+    example
+    -------
+    a=np.random.randint(1,50,size=(1000,1))
+    '''
+    a = np.asarray(a).squeeze()
+    if hist:
+        if bins is None:
+            bins = min(_freedman_diaconis_bins(a), 50)
+        counts,bins=np.histogram(a,bins=bins)
+        if norm_hist:
+            counts=counts/counts.sum()
+    if kde:
+        bw='scott'
+        cut=3
+        if clip is None:
+            clip = (-np.inf, np.inf)
+        try:
+            kdemodel = stats.gaussian_kde(a, bw_method=bw)
+        except TypeError:
+            kdemodel = stats.gaussian_kde(a)
+        bw = "scotts" if bw == "scott" else bw
+        bw = getattr(kdemodel, "%s_factor" % bw)() * np.std(a)
+        if grid is None:
+            support_min = max(a.min() - bw * cut, clip[0])
+            support_max = min(a.max() + bw * cut, clip[1])
+            grid=np.linspace(support_min, support_max, gridsize)
+        y = kdemodel(grid)
+    if hist and not(kde):
+        return counts,bins
+    elif not(hist) and kde:
+        return grid,y
+    elif hist and kde:
+        return ((counts,bins),(grid,y))
+    else:
+        return None
+
+
 def dtype_detection(columns,data=None,category_detection=True,StructureText_detection=True):
     '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
@@ -45,32 +103,32 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
     4. text,文本型
     5. text_st,结构性文本，比如ID,
     6. group_number,连续
-    
+
     parameter
     ---------
     columns: str,列名,也可以直接是Series数据
     data:pd.DataFrame类型
-    # 如果有data,则函数会改变原来data的数据类型 
-    
+    # 如果有data,则函数会改变原来data的数据类型
+
     return:
     result:dict{
         'name':列名,
         'vtype':变量类型,
         'ordered':是否是有序因子,
-        'categories':所有的因子}       
-    
+        'categories':所有的因子}
+
     '''
-    
+
     if data is None:
         data=pd.DataFrame(columns)
         c=data.columns[0]
     else:
         c=columns
-        
+
     if not(isinstance(data,pd.core.frame.DataFrame)):
         print('Please ensure the type of data is Series.')
         raise('')
-        
+
     dtype=data[c].dtype
     name=c
     ordered=False
@@ -98,16 +156,16 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
                 data[c]=pd.to_datetime(data[c])
             except :
                 pass
-      
-        
+
+
         # 处理可能的因子类型
         if len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
             data[c]=data[c].astype('category')
-            
+
         # 在非因子类型的前提下，将百分数转化成浮点数，例如21.12%-->0.2112
         if is_string_dtype(data[c].dtype) and not(is_categorical_dtype(data[c].dtype)) and all(data[c].str.contains('%')):
             data[c]=data[c].str.strip('%').astype(np.float64)/100
-            
+
         if is_categorical_dtype(data[c].dtype):
             vtype='category'
             categories=list(data[c].cat.categories)
@@ -142,7 +200,7 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
     else:
         print('unknown dtype!')
         result=None
-               
+
     return result
 
 
@@ -153,11 +211,11 @@ def var_detection(data,combine=True):
     ---------
     data: 数据,DataFrame格式
     combine: 检测变量中是否有类似的变量，有的话则会合并。
-    
+
     return
     ------
     var_list:[{'name':,'vtype':,'vlist':'ordered':,'categories':},]
-    
+
     '''
     var_list=[]
     for c in data.columns:
@@ -211,7 +269,7 @@ def var_detection(data,combine=True):
             var_list_new.append(var_group_new[i])
             var_list_have+=var_group_new[i]['vlist']
     return var_list_new,data
-                
+
 def describe(data):
     '''
     对每个变量生成统计指标特征
@@ -220,7 +278,7 @@ def describe(data):
     result=pd.DataFrame()
     for c in data.columns:
         result=pd.concat([result,data[[c]].describe()],axis=1)
-    
+
     return result
 
 
@@ -230,7 +288,7 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
     -----------
     figure_type: 'mpl' or 'pptx' or 'html'
     chart_type: 'hist' or 'dist' or 'kde' or 'bar' ......
-    
+
     return
     -------
     chart:dict format.
@@ -238,12 +296,11 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
     .fig: only return if type == 'mpl'
     .ax:
     .chart_data:
-    .chart_type:
-    
+
     '''
-    
+
     # 判别部分
-    
+
     # 绘制部分
     data=pd.DataFrame(data)
     chart={}
@@ -285,6 +342,7 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
         return chart
 
 
+
 def AnalysisReport(data,filename=None,var_list=None):
     '''
     直接生成报告
@@ -295,7 +353,7 @@ def AnalysisReport(data,filename=None,var_list=None):
         #print('============')
 
     slides_data=[]
-    
+
     if filename is None:
         filename='AnalysisReport'+time.strftime('_%Y%m%d%H%M', time.localtime())
         p=_rpt.Report()
@@ -309,7 +367,7 @@ def AnalysisReport(data,filename=None,var_list=None):
     else:
         print('reportgen.AnalysisReport::cannot understand the filename')
         return None
-    
+
     result=describe(data)
     slide_data={'data':result,'slide_type':'table'}
     p.add_slide(data=slide_data,title='数据字段描述')
@@ -368,7 +426,7 @@ def AnalysisReport(data,filename=None,var_list=None):
                     slide_data={'data':'tmp.png','slide_type':'picture'}
                     p.add_slide(data=slide_data,title=name+' 的词云分析',footnote=footnote)
                     slides_data.append(slide_data)
-                    os.remove('tmp.png')                    
+                    os.remove('tmp.png')
             except:
                 print('cannot understand : {}'.format(name))
                 pass
@@ -385,4 +443,3 @@ def AnalysisReport(data,filename=None,var_list=None):
             print('unknown type: {}'.format(name))
     p.save(os.path.splitext(filename)[0]+'.pptx')
     return slides_data
-
