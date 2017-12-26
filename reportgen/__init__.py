@@ -12,5 +12,7 @@ from reportgen import questionnaire
 from reportgen.analysis import AnalysisReport
 from reportgen.analysis import describe
 from reportgen.analysis import plot
+from reportgen import analysis
+from reportgen import utils
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'

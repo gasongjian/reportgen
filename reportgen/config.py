@@ -12,6 +12,14 @@ import pandas as pd
 
 _thisdir = os.path.realpath(os.path.split(__file__)[0])
 
+__all__=['template_pptx',
+         'font_path',
+         'chart_type_list',
+         'number_format_data',
+         'number_format_tick',
+         'font_default_size',
+         'summary_loc',
+         'chart_loc']
 
 def _get_element_path(dir_name,suffix=None):
     if not(os.path.exists(os.path.join(_thisdir,dir_name))):
@@ -24,9 +32,7 @@ def _get_element_path(dir_name,suffix=None):
     elif suffix is not None:
         suffix=list(suffix)
     for f in filelist:
-        if isinstance(suffix,list) and not(os.path.splitext(f)[1][1:] in suffix):
-            element_path=None
-        else:
+        if isinstance(suffix,list) and os.path.splitext(f)[1][1:] in suffix:
             element_path=os.path.join(_thisdir,dir_name,f)
     return element_path
 
@@ -37,8 +43,6 @@ template_pptx=_get_element_path('template',suffix=['pptx'])
 
 
 # default font of chinese
-if not(os.path.exists(os.path.join(_thisdir,'font'))):
-    os.mkdir(os.path.join(_thisdir,'font'))
 font_path=_get_element_path('font',suffix=['ttf','ttc'])
 if font_path is None:
     if sys.platform.startswith('win'):

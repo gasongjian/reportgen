@@ -94,7 +94,8 @@ def distributions(a,hist=True,bins=None,norm_hist=True,kde=True,grid=None,gridsi
         return None
 
 
-def dtype_detection(columns,data=None,category_detection=True,StructureText_detection=True):
+def dtype_detection(columns,data=None,category_detection=True,StructureText_detection=True,\
+datetime_to_category=True):
     '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
     1. number,数值型
@@ -150,7 +151,7 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
     elif is_string_dtype(dtype):
         # 处理时间类型
         tmp=data[c].map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
-        tmp=tmp.dropna().astype(np.int64)
+        tmp=tmp.dropna().astype(np.int64)       
         if not(any(data[c].dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
                 data[c]=pd.to_datetime(data[c])
@@ -159,8 +160,13 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
 
 
         # 处理可能的因子类型
-        if len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
-            data[c]=data[c].astype('category')
+        #时间格式是否处理为True 且
+        if datetime_to_category:
+            if len(data[c].dropna().unique())<np.sqrt(n_sample):
+                data[c]=data[c].astype('category')
+        else:
+            if not(np.issubdtype(data[c].dtype,np.datetime64)) and len(data[c].dropna().unique())<np.sqrt(n_sample):
+                data[c]=data[c].astype('category')
 
         # 在非因子类型的前提下，将百分数转化成浮点数，例如21.12%-->0.2112
         if is_string_dtype(data[c].dtype) and not(is_categorical_dtype(data[c].dtype)) and all(data[c].str.contains('%')):
@@ -205,8 +211,44 @@ def dtype_detection(columns,data=None,category_detection=True,StructureText_dete
 
 
 
+
+def type_of_var(data,inplace=True):
+    '''返回各个变量的类型
+    将数据类型分为以下4种
+    1. number,数值型
+    2. category,因子
+    3. datetime,时间类型
+    4. text,文本型
+    5. text_st,结构性文本，比如ID,
+
+    parameter
+    ---------
+    data:pd.DataFrame类型
+    inplace: 是否直接更改数据
+
+    return:
+    var_type:dict{
+        ColumnName:type,}
+
+    '''
+    var_type={}
+    if not inplace:
+        data1=data.loc[:,:]
+        for c in data1.columns:
+            result=dtype_detection(c,data1,datetime_to_category=False)
+            if result is not None:
+                var_type[c]=result['vtype']
+    else:
+        for c in data.columns:
+            result=dtype_detection(c,data,datetime_to_category=False)
+            if result is not None:
+                var_type[c]=result['vtype']
+    return var_type
+
+
+
 def var_detection(data,combine=True):
-    '''检测整个数据的变量类型
+    '''检测整个数据的变量类型,内部使用，外部请用type_of_var
     parameter
     ---------
     data: 数据,DataFrame格式
@@ -311,12 +353,16 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
         if chart_type in ['hist','kde']:
             for c in data.columns:
                 sns.kdeplot(data[c].dropna(),shade=True,ax=ax)
-            ax.legend()
+            legend_label=ax.get_legend_handles_labels()
+            if len(legend_label)>0 and len(legend_label[0])>0:
+                ax.legend()
             ax.axis('auto')
         elif chart_type in ['dist']:
             for c in data.columns:
                 sns.distplot(data[c].dropna(),ax=ax)
-            ax.legend()
+            legend_label=ax.get_legend_handles_labels()
+            if len(legend_label)>0 and len(legend_label[0])>0:
+                ax.legend()
             ax.axis('auto')
         elif chart_type in ['scatter']:
             ax.xaxis.set_ticks_position('none')
@@ -333,7 +379,9 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
                     for _, row in dd.iterrows():
                         ax.annotate(row.name, (row.iloc[0], row.iloc[1]), color=color[i],fontproperties=myfont,fontsize=10)
             ax.axis('equal')
-            ax.legend()
+            legend_label=ax.get_legend_handles_labels()
+            if len(legend_label)>0 and len(legend_label[0])>0:
+                ax.legend()
         try:
             chart['fig']=fig
         except:
@@ -381,9 +429,11 @@ def AnalysisReport(data,filename=None,var_list=None):
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
             chart['fig'].savefig('kdeplot1.png',dpi=200)
             chart['fig'].clf()
+            del chart
             chart=plot(data[name],figure_type='mpl',chart_type='dist')
             chart['fig'].savefig('kdeplot2.png',dpi=200)
             chart['fig'].clf()
+            del chart
             summary='''平均数为：{:.2f}，标准差为：{:.2f}，最大为：{}'''\
             .format(data[name].mean(),data[name].std(),data[name].max())
             footnote='注: 样本N={}'.format(data[name].count())

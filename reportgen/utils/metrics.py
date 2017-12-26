@@ -3,8 +3,21 @@
 import pandas as pd
 import numpy as np
 from scipy import stats
+import scipy.spatial as ss
+from scipy.special import digamma
+from math import log
+import numpy.random as nr
+import random
 from sklearn.utils.multiclass import type_of_target
 #from collections import Iterable
+
+__all__=['WeightOfEvidence',
+'entropy',
+'entropyc',
+'entropyd',
+'chisquare',
+'info_value']
+
 
 '''
 # 测试数据集
@@ -27,90 +40,6 @@ xp[y=='g']=t1
 xp[y=='b']=t2
 xp=pd.Series(xp)
 '''
-
-
-'''
-模型统一形式：
-parameter
---------
-X,模型输入数据,且只处理一个特征
-y,模型输出数据，可以缺省
-bins,连续数据离散化参数,缺省auto
-
-return
-------
-h
-'''
-
-
-
-"""计算Woe
-==============
-
-针对离散数据,我们需要将离散的枚举值替换成数值才可以用于计算.这些数值就是各个枚举值的权重.
-广义上讲,woe可以算是一种编码方式.
-如何计算这些权重呢?这就得训练.我们需要一组二值代表签数据,
-通过统计离散特征不同枚举值对目标数据的响应情况来计算触发概率,
-
-
-触发概率
----------
-
-本模型针对二分类问题,事件也就是只有True,False两种.我们当然认为True,枚举值i的触发概率可以这样计算,
-比如某个枚举值i对true的触发概率,就是所有i值时是true的数量除以总的t的数量
-
-.. math:: p_f = {\frac {f_i} {f_{total}}}
-
-.. math:: p_t = {\frac {t_i} {t_{total}}}
-
-
-woe
-------
-
-woe就是计算正负概率的信息值
-
-.. math:: woe_i = log_2({\frac {p_f} {p_t}})
-
-
-iv
------
-
-iv值就是这以特征的总信息量也就是各枚举值信息量的和
-
-.. math:: IV_i = (p_f-p_t)*log_2({\frac {p_f} {p_t}})
-
-.. math:: IV = \sum_{k=0}^n IV_i
-
-
-使用方法:
-----------
-
->>> from sklearn import datasets
->>> import pandas as pd
->>> iris = datasets.load_iris()
->>> y = iris.target
->>> z = (y==0)
->>> l = pd.DataFrame(iris.data,columns=iris.feature_names)
->>> d = Discretization([0,5.0,5.5,7])
->>> re = d.transform(l["sepal length (cm)"])
->>> woe = WeightOfEvidence()
->>> woe.fit(re,z)
->>> woe.woe
-{'(0, 5]': 2.6390573296152589,
- '(5, 5.5]': 1.5581446180465499,
- '(5.5, 7]': -2.5389738710582761}
->>> woe.iv
-3.617034906554693
->>> test = ['(0, 5]', '(0, 5]', '(5.5, 7]', '(5.5, 7]', '(5, 5.5]', '(5, 5.5]',
-       '(5.5, 7]', '(5, 5.5]', '(5, 5.5]', '(5, 5.5]', '(0, 5]']
->>> woe.transform(test)
-array([ 2.63905733,  2.63905733, -2.53897387, -2.53897387,  1.55814462,
-        1.55814462, -2.53897387,  1.55814462,  1.55814462,  1.55814462,
-        2.63905733])
-
-"""
-
-
 
 
 class WeightOfEvidence():
@@ -194,7 +123,7 @@ class feature_encoder():
     用于单个特征对因变量的分析，如
     - 该特征中每个item的影响力
     - 对item重编码
- 
+
     '''
 
     def chi2(X,y):
@@ -204,8 +133,8 @@ class feature_encoder():
         weight_chi2=(fo-fe)**2/fe/N/min(fo.shape[0],fo.shape[1])
         weight_chi2=weight_chi2.sum(axis=1)
         return weight_chi2
-    
-    
+
+
     def woe(X,y):
         ctable=pd.crosstab(X,y)
         # 如果有0则每一项都加1
@@ -231,19 +160,7 @@ class feature_encoder():
             for cc in ctable.columns:
                 tmp+=woe_dict[cc]*p[cc]
             woe_dict['avg']=tmp
-            return woe_dict        
-
-
-
-
-def _freedman_diaconis_bins(a):
-    """Calculate number of hist bins using Freedman-Diaconis rule."""
-    # From http://stats.stackexchange.com/questions/798/
-    a = np.asarray(a)
-    iqr = stats.scoreatpercentile(a, 75)-stats.scoreatpercentile(a, 25)   
-    h = 2*iqr/(len(a)**(1/3))
-    bins=int(np.ceil((a.max()-a.min())/h)) if h!=0 else int(np.sqrt(a.size))
-    return bins
+            return woe_dict
 
 
 
@@ -272,16 +189,16 @@ def info_value(X,y,bins='auto'):
          t_down=max([X[y==k].quantile(q) for k in y.dropna().unique()])
          t_up=min([X[y==k].quantile(1-q) for k in y.dropna().unique()])
          threshold.append((t_down,t_up))
-  
+
     if bins is not None:
         X=pd.cut(X,bins)
     ctable=pd.crosstab(X,y)
-    p=ctable.sum()/ctable.sum().sum()   
+    p=ctable.sum()/ctable.sum().sum()
     if ctable.shape[1]==2:
         ctable=ctable/ctable.sum()
         IV=((ctable.iloc[:,0]-ctable.iloc[:,1])*np.log2(ctable.iloc[:,0]/ctable.iloc[:,1])).sum()
         return IV
-    
+
     IV=0
     for cc in ctable.columns:
         ctable_bin=pd.concat([ctable[cc],ctable.loc[:,~(ctable.columns==cc)].sum(axis=1)],axis=1)
@@ -293,41 +210,26 @@ def info_value(X,y,bins='auto'):
 
 
 
-class entropy():
-    
+class entropy:
+
     '''
     计算样本的熵以及相关的指标
     函数的输入默认均为原始的样本集
-    
+
     '''
-    def entropy(X,dtype='category'):
+    def entropy(X):
         '''
         计算随机变量的信息熵
         H(X)=-\sum p_i log2(p_i)
-        '''       
+        '''
         X=pd.Series(X)
-        
-        if dtype == 'auto':
-            if len(X.dropna().unique())>min(40,np.sqrt(X.dropna().count())):
-                dtype='numeric'
-            else:
-                dtype='category'
-       
-        if dtype == 'category':
-            p=X.value_counts(normalize=True)
-        elif dtype == 'numeric':
-            bins=_freedman_diaconis_bins(X)
-            p=X.value_counts(normalize=True,bins=bins)
-        elif (X>=0).all() and X.sum()==1:
-            p=X
-        else:
-            return None     
+        p=X.value_counts(normalize=True)
         p=p[p>0]
-        h=-(p*np.log2(p)).sum()          
+        h=-(p*np.log2(p)).sum()
         return h
 
 
-    def entropy_condition(X,y,dtype_x='category',dtype_y='category'):
+    def cond_entropy(x,y):
         '''
         计算随机变量的条件熵
         y必须是因子型变量
@@ -338,10 +240,10 @@ class entropy():
         p=y.value_counts(normalize=True)
         h=0
         for yi in y.dropna().unique():
-            h+=p[yi]*entropy.entropy(X[y==yi],dtype=dtype_x)
+            h+=p[yi]*entropy.entropy(x[y==yi])
         return h
 
-    def entropy_combination(X,y,dtype_x='category',dtype_y='category'):
+    def comb_entropy(x,y):
         '''
         计算随机变量的联合熵
         H(X,y)=-\sum p(x_i,y_i)*log2(p(x_i,y_i))=H(X)+H(y|X)
@@ -354,87 +256,338 @@ class entropy():
         w=w[w>0]
         h=-(w*np.log2(w)).sum()
         '''
-        h=entropy.entropy(y,dtype_y)+entropy.entropy_condition(X,y,dtype_x)
+        h=entropy.entropy(y)+entropy.cond_entropy(x,y)
         return h
 
-    def mutual_info(X,y,dtype_x='category'):
-        ''' 
+    def mutual_info(x,y):
+        '''
         计算随机变量的互信息
         I(X;y)=H(X)-H(X|y)=H(y)-H(y|X)
         '''
-        h=entropy.entropy(X,dtype_x)-entropy.entropy_condition(X,y,dtype_x)
+        h=entropy.entropy(x)-entropy.cond_entropy(x,y)
         return h
-    
-    def info_gain(X,y,dtype_x='category'):
-        ''' 
+
+    def info_gain(x,y):
+        '''
         计算随机变量的互信息
         I(X;y)=H(X)-H(X|y)=H(y)-H(y|X)
         '''
-        h=entropy.entropy(X,dtype_x)-entropy.entropy_condition(X,y,dtype_x)
+        h=entropy.entropy(x)-entropy.cond_entropy(x,y)
         return h
-    
-    def info_gain_ratio(X,y,dtype_x='category'):
-        ''' 
+
+    def info_gain_ratio(x,y):
+        '''
         计算随机变量的信息增益比，此时X是总体，y是某个特征
         I(X;y)=H(X)-H(X|y)=H(y)-H(y|X)
         IG(X;y)=I(X;y)/H(y)
         '''
-        h=entropy.entropy(X,dtype_x)-entropy.entropy_condition(X,y,dtype_x)
+        h=entropy.entropy(x)-entropy.cond_entropy(x,y)
         hy=entropy.entropy(y)
         h=h/hy if hy>0 else 0
         return h
-           
-    
-    
-    def entropy_cross(X,y,dtype='category'):
+
+
+
+    def cross_entropy(x,y):
         '''
         计算随机变量的交叉熵
         要求X和y的测度空间相同,此时X和y的样本数量可以不一致
-        
+
         H(p,q)=-\sum p(x)log2(q(x))
-        
+
         parameter
         --------
-        dtype: X和y的数据类型，因子变量category和数值变量numeric，默认是category
         '''
-        X=pd.Series(X)
+        X=pd.Series(x)
         y=pd.Series(y)
-        if dtype=='category':
-            p=X.value_counts(normalize=True)
-            q=y.value_counts(normalize=True)
-            h=-(p*np.log2(q)).sum()
-        elif dtype=='numeric':
-            bins_X=_freedman_diaconis_bins(X)
-            bins_y=_freedman_diaconis_bins(y)
-            p=X.value_counts(normalize=True,bins=bins_X)
-            q=y.value_counts(normalize=True,bins=bins_y)
-            h=-(p*np.log2(q)).sum()
+        p=X.value_counts(normalize=True)
+        q=y.value_counts(normalize=True)
+        h=-(p*np.log2(q)).sum()
         return h
 
 
-    def entropy_relative(X,y,dtype='category'):
+    def relative_entropy(x,y):
         '''
         计算随机变量的相对熵
         要求X和y的测度空间相同,此时X和y的样本数量可以不一致
         D=\sum p(x) log2(p(x)/q(x))=H(p,q)-H(p)
-        
+
         parameter
         --------
         dtype: X和y的数据类型，因子变量category和数值变量numeric，默认是category
-        '''      
+        '''
 
-        X=pd.Series(X)
+        X=pd.Series(x)
         y=pd.Series(y)
-        if dtype=='category':
-            p=X.value_counts(normalize=True)
-            q=y.value_counts(normalize=True)
-            #h=entropy.entropy_cross(p,q)-entropy.entropy(p)
-            h=(p*np.log2(p/q)).sum()
-        elif dtype=='numeric':
-            bins_X=_freedman_diaconis_bins(X)
-            bins_y=_freedman_diaconis_bins(y)
-            p=X.value_counts(normalize=True,bins=bins_X)
-            q=y.value_counts(normalize=True,bins=bins_y)
-            h=(p*np.log2(p/q)).sum()
-
+        p=X.value_counts(normalize=True)
+        q=y.value_counts(normalize=True)
+        #h=entropy.entropy_cross(p,q)-entropy.entropy(p)
+        h=(p*np.log2(p/q)).sum()
         return h
+
+
+
+
+# CONTINUOUS ESTIMATORS
+class entropyc:
+
+    '''
+    原作者：Greg Ver Steeg
+    GitHub：https://github.com/gregversteeg/NPEET
+    Or go to http://www.isi.edu/~gregv/npeet.html
+
+    ref:Alexander Kraskov etc. Estimating mutual information. Phys. Rev. E, 69:066138, Jun 2004
+
+    连续分布的熵估计
+    '''
+
+    def entropy(x, k=3, base=2):
+        """
+        The classic K-L k-nearest neighbor continuous entropy estimator
+
+        if x is a one-dimensional scalar and we have:
+        H(X)=-\sum p_i log2(p_i)
+        if we only have random sample (x1 . . . xN) of N realizations of X,
+        we can estimator H(X):
+
+        H(X) = −ψ(k) + ψ(N) + \log c_d + d/N \sum_{i=1}^{N} \log eps(i)
+
+        where ψ(x) is digammer funciton,d is the dimention of x,
+         c_d is the volume of the d-dimensional unit ball
+        eps(i) is twice the distance from xi to its k-th neighbour
+
+        parameter
+        ---------
+        x: 某个分布的抽样，且支持多维。
+        k: k近邻的
+        base：2
+
+        return
+        -------
+        entropy
+        """
+        x=np.asarray(x)
+        if len(x.shape)==1:
+            x=x.reshape((len(x),1))
+        assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+        d = len(x[0])
+        N = len(x)
+        intens = 1e-10  # small noise to break degeneracy, see doc.
+        x = [list(p + intens * nr.rand(len(x[0]))) for p in x]
+        tree = ss.cKDTree(x)
+        nn = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in x]
+        const = digamma(N) - digamma(k) + d * log(base)
+        return (const + d * np.mean(list(map(log, nn)))) / log(base)
+
+    def cond_entropy(x, y, k=3, base=2):
+      """ The classic K-L k-nearest neighbor continuous entropy estimator for the
+          entropy of X conditioned on Y.
+      """
+      hxy = entropyc.entropy([xi + yi for (xi, yi) in zip(x, y)], k, base)
+      hy = entropyc.entropy(y, k, base)
+      return hxy - hy
+
+    def _column(xs, i):
+      return [[x[i]] for x in xs]
+
+    def tc(xs, k=3, base=2):
+      xis = [entropyc.entropy(entropyc._column(xs, i), k, base) for i in range(0, len(xs[0]))]
+      return np.sum(xis) - entropyc.entropy(xs, k, base)
+
+    def ctc(xs, y, k=3, base=2):
+      xis = [entropyc.cond_entropy(entropyc._column(xs, i), y, k, base) for i in range(0, len(xs[0]))]
+      return np.sum(xis) - entropyc.cond_entropy(xs, y, k, base)
+
+    def corex(xs, ys, k=3, base=2):
+      cxis = [entropyc.mutual_info(entropyc._column(xs, i), ys, k, base) for i in range(0, len(xs[0]))]
+      return np.sum(cxis) - entropyc.mutual_info(xs, ys, k, base)
+
+    def mutual_info(x, y, k=3, base=2):
+        """ Mutual information of x and y
+            x, y should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
+            if x is a one-dimensional scalar and we have four samples
+        """
+        assert len(x) == len(y), "Lists should have same length"
+        assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+        intens = 1e-10  # small noise to break degeneracy, see doc.
+        x = [list(p + intens * nr.rand(len(x[0]))) for p in x]
+        y = [list(p + intens * nr.rand(len(y[0]))) for p in y]
+        points = zip2(x, y)
+        # Find nearest neighbors in joint space, p=inf means max-norm
+        tree = ss.cKDTree(points)
+        dvec = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in points]
+        a, b, c, d = avgdigamma(x, dvec), avgdigamma(y, dvec), digamma(k), digamma(len(x))
+        return (-a - b + c + d) / log(base)
+
+
+    def cond_mutual_info(x, y, z, k=3, base=2):
+        """ Mutual information of x and y, conditioned on z
+            x, y, z should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
+            if x is a one-dimensional scalar and we have four samples
+        """
+        assert len(x) == len(y), "Lists should have same length"
+        assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+        intens = 1e-10  # small noise to break degeneracy, see doc.
+        x = [list(p + intens * nr.rand(len(x[0]))) for p in x]
+        y = [list(p + intens * nr.rand(len(y[0]))) for p in y]
+        z = [list(p + intens * nr.rand(len(z[0]))) for p in z]
+        points = zip2(x, y, z)
+        # Find nearest neighbors in joint space, p=inf means max-norm
+        tree = ss.cKDTree(points)
+        dvec = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in points]
+        a, b, c, d = avgdigamma(zip2(x, z), dvec), avgdigamma(zip2(y, z), dvec), avgdigamma(z, dvec), digamma(k)
+        return (-a - b + c + d) / log(base)
+
+
+    def kl_div(x, xp, k=3, base=2):
+        """ KL Divergence between p and q for x~p(x), xp~q(x)
+            x, xp should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
+            if x is a one-dimensional scalar and we have four samples
+        """
+        assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
+        assert k <= len(xp) - 1, "Set k smaller than num. samples - 1"
+        assert len(x[0]) == len(xp[0]), "Two distributions must have same dim."
+        d = len(x[0])
+        n = len(x)
+        m = len(xp)
+        const = log(m) - log(n - 1)
+        tree = ss.cKDTree(x)
+        treep = ss.cKDTree(xp)
+        nn = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in x]
+        nnp = [treep.query(point, k, p=float('inf'))[0][k - 1] for point in x]
+        return (const + d * np.mean(map(log, nnp)) - d * np.mean(map(log, nn))) / log(base)
+
+    # DISCRETE ESTIMATORS
+class entropyd:
+
+    def entropy(sx, base=2):
+        """ Discrete entropy estimator
+            Given a list of samples which can be any hashable object
+        """
+        return entropyd.entropyfromprobs(entropyd.hist(sx), base=base)
+
+
+    def mutual_info(x, y, base=2):
+        """ Discrete mutual information estimator
+            Given a list of samples which can be any hashable object
+        """
+        return -entropyd.entropy(zip(x, y), base) + entropyd.entropy(x, base) + entropyd.entropy(y, base)
+
+    def cond_mutual_info(x, y, z):
+        """ Discrete mutual information estimator
+            Given a list of samples which can be any hashable object
+        """
+        return entropyd.entropy(zip(y, z))+entropyd.entropy(zip(x, z))-entropyd.entropy(zip(x, y, z))-entropyd.entropy(z)
+
+    def cond_entropy(x, y, base=2):
+      """ The classic K-L k-nearest neighbor continuous entropy estimator for the
+          entropy of X conditioned on Y.
+      """
+      return entropyd.entropy(zip(x, y), base) - entropyd.entropy(y, base)
+
+    def tcd(xs, base=2):
+      xis = [entropyd.entropy(entropyd._column(xs, i), base) for i in range(0, len(xs[0]))]
+      hx = entropyd.entropy(xs, base)
+      return np.sum(xis) - hx
+
+    def ctcd(xs, y, base=2):
+      xis = [entropyd.cond_entropy(entropyd._column(xs, i), y, base) for i in range(0, len(xs[0]))]
+      return np.sum(xis) - entropyd.cond_entropy(xs, y, base)
+
+    def corexd(xs, ys, base=2):
+      cxis = [entropyd.mutual_infod(entropyd._column(xs, i), ys, base) for i in range(0, len(xs[0]))]
+      return np.sum(cxis) - entropyd.mutual_info(xs, ys, base)
+
+    def hist(sx):
+        sx = discretize(sx)
+        # Histogram from list of samples
+        d = dict()
+        for s in sx:
+            if type(s) == list:
+              s = tuple(s)
+            d[s] = d.get(s, 0) + 1
+        return map(lambda z: float(z) / len(sx), d.values())
+
+
+    def entropyfromprobs(probs, base=2):
+        # Turn a normalized list of probabilities of discrete outcomes into entropy (base 2)
+        return -sum(map(entropyd.elog, probs)) / log(base)
+
+    def _column(xs, i):
+      return [[x[i]] for x in xs]
+
+    def elog(x):
+        # for entropy, 0 log 0 = 0. but we get an error for putting log 0
+        if x <= 0. or x >= 1.:
+            return 0
+        else:
+            return x * log(x)
+
+
+
+
+
+# UTILITY FUNCTIONS
+def vectorize(scalarlist):
+    """ Turn a list of scalars into a list of one-d vectors
+    """
+    return [[x] for x in scalarlist]
+
+
+def shuffle_test(measure, x, y, z=False, ns=200, ci=0.95, **kwargs):
+    """ Shuffle test
+        Repeatedly shuffle the x-values and then estimate measure(x, y, [z]).
+        Returns the mean and conf. interval ('ci=0.95' default) over 'ns' runs.
+        'measure' could me mi, cmi, e.g. Keyword arguments can be passed.
+        Mutual information and CMI should have a mean near zero.
+    """
+    xp = x[:]  # A copy that we can shuffle
+    outputs = []
+    for i in range(ns):
+        random.shuffle(xp)
+        if z:
+            outputs.append(measure(xp, y, z, **kwargs))
+        else:
+            outputs.append(measure(xp, y, **kwargs))
+    outputs.sort()
+    return np.mean(outputs), (outputs[int((1. - ci) / 2 * ns)], outputs[int((1. + ci) / 2 * ns)])
+
+def _freedman_diaconis_bins(a):
+    """Calculate number of hist bins using Freedman-Diaconis rule."""
+    # From http://stats.stackexchange.com/questions/798/
+    a = np.asarray(a)
+    iqr = stats.scoreatpercentile(a, 75)-stats.scoreatpercentile(a, 25)
+    h = 2*iqr/(len(a)**(1/3))
+    bins=int(np.ceil((a.max()-a.min())/h)) if h!=0 else int(np.sqrt(a.size))
+    return bins
+
+# INTERNAL FUNCTIONS
+
+def avgdigamma(points, dvec):
+    # This part finds number of neighbors in some radius in the marginal space
+    # returns expectation value of <psi(nx)>
+    N = len(points)
+    tree = ss.cKDTree(points)
+    avg = 0.
+    for i in range(N):
+        dist = dvec[i]
+        # subtlety, we don't include the boundary point,
+        # but we are implicitly adding 1 to kraskov def bc center point is included
+        num_points = len(tree.query_ball_point(points[i], dist - 1e-15, p=float('inf')))
+        avg += digamma(num_points) / N
+    return avg
+
+
+def zip2(*args):
+    # zip2(x, y) takes the lists of vectors and makes it a list of vectors in a joint space
+    # E.g. zip2([[1], [2], [3]], [[4], [5], [6]]) = [[1, 4], [2, 5], [3, 6]]
+    return [sum(sublist, []) for sublist in zip(*args)]
+
+def discretize(xs):
+    def discretize_one(x):
+        if len(x) > 1:
+            return tuple(x)
+        else:
+            return x[0]
+    # discretize(xs) takes a list of vectors and makes it a list of tuples or scalars
+    return [discretize_one(x) for x in xs]
