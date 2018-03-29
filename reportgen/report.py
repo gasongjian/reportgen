@@ -13,7 +13,7 @@ import numpy as np
 pd.set_option('display.float_format', lambda x: '%.2f' % x)
 
 from . import config
-from .delaunay import Delaunay2D
+from .utils import Delaunay2D
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -36,6 +36,20 @@ if font_path:
 
 # default template of pptx report
 template_pptx=config.template_pptx
+
+
+
+__all__=['Report',
+         'df_to_table',
+         'df_to_chartdata',
+         'plot_table',
+         'plot_textbox',
+         'plot_chart',
+         'plot_picture',
+         'slides_data_gen',
+         'plot_cover',
+         'genwordcloud']
+
 
 
 chart_list={\
@@ -149,7 +163,10 @@ def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=T
     for row in range(rows):
         for col in range(cols):
             cell=res.table.cell(row+columns_names, col+index_names)
-            cell.text = '%s'%(m[row, col])
+            if isinstance(m[row, col],float):
+                cell.text = '%.2f'%(m[row, col])
+            else:
+                cell.text = '%s'%(m[row, col])
             #cell.text_frame.fit_text(max_size=12)
 
 

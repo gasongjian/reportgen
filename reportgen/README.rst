@@ -1,12 +1,20 @@
 reportgen
 ===========
 
-Release v0.1.6
+Release v0.1.8
 
 *reportgen* is a Python library for creating and updating analysis report.
 
 Release History
 ------------------
+0.1.8(2018-03-28)
+
+- Add subpackages metrics and preprocessing which contain entropy,WOE,discretization etc..
+- Add associate analysis(FP growth): frequent_itemsets and association_rules.
+- Add functions :ClassifierReport,type_of_var.
+- Fix the logic of package.
+- Fix some bugs.
+
 0.1.6(2017-12-06)
 
 - Add function rpt.plot().
@@ -18,13 +26,10 @@ Release History
 - Add function AnalysisReport, it can plot the general data to pptx files.
 - Fix some bugs.
 
-0.1.1(2017-11-19)
-
-- fix some bugs.
-
 0.1.0(2017-11-18)
 
 - Create.
+
 
 Feature Support
 ------------------

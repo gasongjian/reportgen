@@ -18,10 +18,12 @@ from pandas.api.types import is_number
 from pandas.api.types import is_datetime64_any_dtype
 from pandas.api.types import is_categorical_dtype
 from scipy import stats
+from sklearn import metrics
 
 from . import report as _rpt
 from . import config
 from .report import genwordcloud
+from .utils.metrics import entropyc
 
 from .utils import iqr
 
@@ -37,6 +39,12 @@ if font_path:
     myfont=FontProperties(fname=font_path)
     sns.set(font=myfont.get_name())
 
+
+__all__=['type_of_var',
+         'describe',
+         'plot',
+         'AnalysisReport',
+         'ClassifierReport']
 
 
 def _freedman_diaconis_bins(a):
@@ -94,8 +102,8 @@ def distributions(a,hist=True,bins=None,norm_hist=True,kde=True,grid=None,gridsi
         return None
 
 
-def dtype_detection(columns,data=None,category_detection=True,StructureText_detection=True,\
-datetime_to_category=True):
+def dtype_detection(data,category_detection=True,StructureText_detection=True,\
+datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     '''检测数据中单个变量的数据类型
     将数据类型分为以下4种
     1. number,数值型
@@ -107,9 +115,17 @@ datetime_to_category=True):
 
     parameter
     ---------
-    columns: str,列名,也可以直接是Series数据
-    data:pd.DataFrame类型
+    data: pd.Series 数据, 仅支持一维
     # 如果有data,则函数会改变原来data的数据类型
+    category_detection: bool,根据 nunique 检测是否是因子类型
+    StructureText_detection: bool, 结构化文本，如列中都有一个分隔符"-"
+    datetime_to_category: 时间序列如果 nunique过少是否转化成因子变量
+    criterion: string or int, optional (default="sqrt",即样本数的开根号)
+        支持：'sqrt'：样本量的开根号, int: 绝对数, 0-1的float：样本数的百分多少
+        检测因子变量时，如果一个特征的nunique小于criterion,则判定为因子变量
+    min_mean_counts: default 5,数值型判定为因子变量时，需要满足每个类别的平均频数要大于min_mean_counts
+    fix: bool,是否返回修改好类型的数据
+    
 
     return:
     result:dict{
@@ -119,81 +135,85 @@ datetime_to_category=True):
         'categories':所有的因子}
 
     '''
+        
+    assert len(data.shape)==1
+    data=data.copy()
+    data=pd.Series(data)
+    dtype,name,n_sample=data.dtype,data.name,data.count()
 
-    if data is None:
-        data=pd.DataFrame(columns)
-        c=data.columns[0]
+    min_mean_counts=5
+    if criterion=='sqrt':
+        max_nuniques=np.sqrt(n_sample)
+    elif isinstance(criterion,int):
+        max_nuniques=criterion
+    elif isinstance(criterion,float) and (0<criterion<1):
+        max_nuniques=criterion
     else:
-        c=columns
-
-    if not(isinstance(data,pd.core.frame.DataFrame)):
-        print('Please ensure the type of data is Series.')
-        raise('')
-
-    dtype=data[c].dtype
-    name=c
+        max_nuniques=np.sqrt(n_sample)
     ordered=False
     categories=[]
-    n_sample=data[c].count()
     if is_numeric_dtype(dtype):
         vtype='number'
         ordered=False
         categories=[]
         # 纠正误分的数据类型。如将1.0，2.0，3.0都修正为1，2，3
-        if data[c].dropna().astype(np.int64).sum()==data[c].dropna().sum():
-            data.loc[data[c].notnull(),c]=data.loc[data[c].notnull(),c].astype(np.int64)
-        if category_detection and len(data[c].dropna().unique())<np.sqrt(n_sample) and data[c].value_counts().mean()>=2:
-            data[c]=data[c].astype('category')
-            ordered=data[c].cat.ordered
-            vtype='category'
-            categories=list(data[c].dropna().cat.categories)
+        if data.dropna().astype(np.int64).sum()==data.dropna().sum():
+            data[data.notnull()]=data[data.notnull()].astype(np.int64)
+        if category_detection:
+            nunique=len(data.dropna().unique())
+            mean_counts=data.value_counts().median()
+            if nunique<max_nuniques and mean_counts>=min_mean_counts:
+                data=data.astype('category')
+                ordered=data.cat.ordered
+                vtype='category'
+                categories=list(data.dropna().cat.categories)
         result={'name':name,'vtype':vtype,'ordered':ordered,'categories':categories}
     elif is_string_dtype(dtype):
         # 处理时间类型
-        tmp=data[c].map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
+        tmp=data.map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
         tmp=tmp.dropna().astype(np.int64)       
-        if not(any(data[c].dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
+        if not(any(data.dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
-                data[c]=pd.to_datetime(data[c])
+                data=pd.to_datetime(data)
             except :
                 pass
-
-
         # 处理可能的因子类型
         #时间格式是否处理为True 且
         if datetime_to_category:
-            if len(data[c].dropna().unique())<np.sqrt(n_sample):
-                data[c]=data[c].astype('category')
+            if len(data.dropna().unique())<np.sqrt(n_sample):
+                data=data.astype('category')
         else:
-            if not(np.issubdtype(data[c].dtype,np.datetime64)) and len(data[c].dropna().unique())<np.sqrt(n_sample):
-                data[c]=data[c].astype('category')
+            nunique=len(data.dropna().unique())
+            #print(data.dtype)
+            if not(is_categorical_dtype(data.dtype)) and not(np.issubdtype(data.dtype,np.datetime64)) and nunique<max_nuniques:
+                data=data.astype('category')
 
         # 在非因子类型的前提下，将百分数转化成浮点数，例如21.12%-->0.2112
-        if is_string_dtype(data[c].dtype) and not(is_categorical_dtype(data[c].dtype)) and all(data[c].str.contains('%')):
-            data[c]=data[c].str.strip('%').astype(np.float64)/100
+        if is_string_dtype(data.dtype) and not(is_categorical_dtype(data.dtype)) and all(data.str.contains('%')):
+            data=data.str.strip('%').astype(np.float64)/100
 
-        if is_categorical_dtype(data[c].dtype):
+        if is_categorical_dtype(data.dtype):
             vtype='category'
-            categories=list(data[c].cat.categories)
-            ordered=data[c].cat.ordered
+            categories=list(data.cat.categories)
+            ordered=data.cat.ordered
         # 时间格式
-        elif np.issubdtype(data[c].dtype,np.datetime64):
+        elif np.issubdtype(data.dtype,np.datetime64):
             vtype='datetime'
         # 是否是结构化数组
         elif StructureText_detection and tmp.dropna().std()==0:
             # 不可迭代，不是字符串
-            if not(isinstance(data[c].dropna().iloc[0],Iterable)):
+            if not(isinstance(data.dropna().iloc[0],Iterable)):
                 vtype='text'
             else:
-                k=set(list(data[c].dropna().iloc[0]))
-                for x in data[c]:
+                k=set(list(data.dropna().iloc[0]))
+                for x in data:
                     if isinstance(x,str) and len(x)>0:
                         k&=set(list(x))
                 if len(k)>0:
                     vtype='text_st'
                 else:
                     vtype='text'
-        elif is_numeric_dtype(data[c].dtype):
+        elif is_numeric_dtype(data.dtype):
             vtype='number'
             ordered=False
             categories=[]
@@ -206,13 +226,15 @@ datetime_to_category=True):
     else:
         print('unknown dtype!')
         result=None
+        
+    if fix:
+        return result,data
+    else:
+        return result
 
-    return result
 
 
-
-
-def type_of_var(data,inplace=True):
+def type_of_var(data,category_detection=True,criterion='sqrt',min_mean_counts=5,copy=True):
     '''返回各个变量的类型
     将数据类型分为以下4种
     1. number,数值型
@@ -221,28 +243,42 @@ def type_of_var(data,inplace=True):
     4. text,文本型
     5. text_st,结构性文本，比如ID,
 
-    parameter
-    ---------
-    data:pd.DataFrame类型
-    inplace: 是否直接更改数据
+    parameters
+    ----------
+    data: pd.DataFrame类型
+    category_detection: bool,根据 nunique 检测是否是因子类型
+    criterion: string or int, optional (default="sqrt",即样本数的开根号)
+        支持：'sqrt'：样本量的开根号, int: 绝对数, 0-1的float：样本数的百分多少
+        检测因子变量时，如果一个特征的nunique小于criterion,则判定为因子变量
+    min_mean_counts: default 5,数值型判定为因子变量时，需要满足每个类别的平均频数要大于min_mean_counts
+    copy: bool, 是否更改数据类型，如时间格式、因子变量等
 
     return:
+    --------
     var_type:dict{
         ColumnName:type,}
 
     '''
+    assert isinstance(data,pd.core.frame.DataFrame)
     var_type={}
-    if not inplace:
-        data1=data.loc[:,:]
-        for c in data1.columns:
-            result=dtype_detection(c,data1,datetime_to_category=False)
+    for c in data.columns:
+        #print('type_of_var : ',c)
+        if copy:
+            data=data.copy()
+            result=dtype_detection(data[c],category_detection=category_detection,\
+            criterion=criterion,min_mean_counts=min_mean_counts,datetime_to_category=False,fix=False)
             if result is not None:
                 var_type[c]=result['vtype']
-    else:
-        for c in data.columns:
-            result=dtype_detection(c,data,datetime_to_category=False)
+            else:
+                var_type[c]='unknown'
+        else:
+            result,tmp=dtype_detection(data[c],category_detection=category_detection,\
+            criterion=criterion,min_mean_counts=min_mean_counts,datetime_to_category=False,fix=True)
+            data[c]=tmp
             if result is not None:
                 var_type[c]=result['vtype']
+            else:
+                var_type[c]='unknown'
     return var_type
 
 
@@ -256,12 +292,13 @@ def var_detection(data,combine=True):
 
     return
     ------
-    var_list:[{'name':,'vtype':,'vlist':'ordered':,'categories':},]
+    var_list:[{'name':,'vtype':,'vlist':,'ordered':,'categories':,},]
 
     '''
     var_list=[]
     for c in data.columns:
-        result=dtype_detection(c,data)
+        result,tmp=dtype_detection(data[c],fix=True)
+        data[c]=tmp
         if result is not None:
             var_list.append(result)
     if not(combine):
@@ -315,13 +352,38 @@ def var_detection(data,combine=True):
 def describe(data):
     '''
     对每个变量生成统计指标特征
+    对于每一个变量，生成如下字段：
+        数据类型：
+        最大值/频数最大的那个： 
+        最小值/频数最小的那个：
+        均值/频数中间的那个：
+        缺失率：
+        范围/唯一数：
     '''
-    #var_list=var_detection(data,combine=False)
-    result=pd.DataFrame()
-    for c in data.columns:
-        result=pd.concat([result,data[[c]].describe()],axis=1)
 
-    return result
+    data=pd.DataFrame(data)
+    n_sample=len(data)
+    var_type=type_of_var(data,copy=True)
+    summary=pd.DataFrame(columns=data.columns,index=['dtype','max','min','mean','missing_pct','std/nuniue'])
+    for c in data.columns:
+        missing_pct=1-data[c].count()/n_sample
+        if var_type[c] == 'number':
+            max_value,min_value,mean_value=data[c].max(),data[c].min(),data[c].mean()
+            std_value=data[c].std()
+            summary.loc[:,c]=[var_type[c],max_value,min_value,mean_value,missing_pct,std_value]
+        elif var_type[c] == 'category':
+            tmp=data[c].value_counts()
+            max_value,min_value=tmp.argmax(),tmp.argmin()
+            mean_value_index=tmp[tmp==tmp.median()].index
+            mean_value=mean_value_index[0] if len(mean_value_index)>0 else np.nan
+            summary.loc[:,c]=[var_type[c],max_value,min_value,mean_value,missing_pct,len(tmp)]
+        elif var_type[c] == 'datetime':
+            max_value,min_value=data[c].max(),data[c].min()
+            summary.loc[:,c]=[var_type[c],max_value,min_value,np.nan,missing_pct,np.nan]
+        else:
+            summary.loc[:,c]=[var_type[c],np.nan,np.nan,np.nan,missing_pct,np.nan]
+    return summary
+
 
 
 def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
@@ -416,14 +478,22 @@ def AnalysisReport(data,filename=None,var_list=None):
         print('reportgen.AnalysisReport::cannot understand the filename')
         return None
 
-    result=describe(data)
-    slide_data={'data':result,'slide_type':'table'}
-    p.add_slide(data=slide_data,title='数据字段描述')
+    summary=describe(data)
+    n_cut=round(summary.shape[1]/10)
+    n_cut=1 if n_cut==0 else n_cut
+    for i in range(n_cut):
+        if i!=n_cut-1:
+            summary_tmp=summary.iloc[:,10*i:10*i+10]
+        else:
+            summary_tmp=summary.iloc[:,10*i:]
+        slide_data={'data':summary_tmp,'slide_type':'table'}
+        title='数据字段描述{}'.format(i+1) if n_cut>1 else '数据字段描述'
+        p.add_slide(data=slide_data,title=title)
 
     for v in var_list:
         vtype=v['vtype']
         name=v['name']
-        vlist=v['vlist']
+        vlist=v['vlist']       
         #print(name,':',vtype)
         if vtype == 'number':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
@@ -493,3 +563,111 @@ def AnalysisReport(data,filename=None,var_list=None):
             print('unknown type: {}'.format(name))
     p.save(os.path.splitext(filename)[0]+'.pptx')
     return slides_data
+    
+    
+    
+def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
+    '''二分类模型评估（后期可能会修改为多分类）
+    真实数据和预测数据之间的各种可视化和度量
+    
+    parameters:
+    -----------
+    y_true: array_like 真实的标签,binary
+    y_preds: dict or array_like. 预测的标签，binary,可以用 dict 存储多个模型的预测标签数据
+    y_probas: dict or array_like. 预测的概率，0-1,可以用 dict 存储多个模型的预测标签数据
+    img_save：Bool，是否直接将图片保存到本地
+    
+    return:
+    ---------
+    models_report: 各模型的各种评估数据
+    conf_matrix: 各模型的混淆矩阵
+    '''
+
+
+    #from sklearn import metrics
+    assert type(y_preds) == type(y_probas)
+    if not(isinstance(y_preds,dict)):
+        y_preds={'clf':y_preds}
+        y_probas={'clf':y_probas}
+    models_report=pd.DataFrame()
+    conf_matrix={}
+    fig1,ax1=plt.subplots()
+    fig2,ax2=plt.subplots()
+    fig3,ax3=plt.subplots()
+    for clf in y_preds:
+        y_pred=y_preds[clf]
+        y_proba=y_probas[clf]
+        try:
+            kl_div_score=entropyc.kl_div(y_proba[y_true==1],y_proba[y_true==0])
+            kl_div_score+=entropyc.kl_div(y_proba[y_true==0],y_proba[y_true==1])
+        except:
+            kl_div_score=np.nan
+        scores = pd.Series({'model' : clf,
+                            'roc_auc_score' : metrics.roc_auc_score(y_true, y_proba),
+                             'good_rate': y_true.value_counts()[0]/len(y_true),
+                             'matthews_corrcoef': metrics.matthews_corrcoef(y_true, y_pred),
+                             'accuracy_score': metrics.accuracy_score(y_true,y_pred),
+                             'ks_score': np.nan,
+                             'precision_score': metrics.precision_score(y_true, y_pred),
+                             'recall_score': metrics.recall_score(y_true, y_pred),
+                             'kl_div': kl_div_score,
+                             'f1_score': metrics.f1_score(y_true, y_pred)})
+        models_report=models_report.append(scores,ignore_index = True)
+        conf_matrix[clf]=pd.crosstab(y_true, y_pred, rownames=['True'], colnames= ['Predicted'], margins=False)
+        #print('\n{} 模型的混淆矩阵:'.format(clf))
+        #print(conf_matrix[clf])
+
+        # ROC 曲线
+        fpr, tpr, thresholds=metrics.roc_curve(y_true,y_proba,pos_label=1)
+        auc_score=metrics.auc(fpr,tpr)
+        w=tpr-fpr
+        ks_score=w.max()
+        models_report.loc[models_report['model']==clf,'ks_score']=ks_score
+        ks_x=fpr[w.argmax()]
+        ks_y=tpr[w.argmax()]
+        #sc=thresholds[w.argmax()]
+        #fig1,ax1=plt.subplots()
+        ax1.set_title('ROC Curve')
+        ax1.set_xlabel('False Positive Rate')
+        ax1.set_ylabel('True Positive Rate')
+        ax1.plot([0, 1], [0, 1], '--', color=(0.6, 0.6, 0.6))
+        ax1.plot([ks_x,ks_x], [ks_x,ks_y], '--', color='red')
+        ax1.text(ks_x,(ks_x+ks_y)/2,r'   $S_c$=%.2f, KS=%.3f'%(thresholds[w.argmax()],ks_score))
+        ax1.plot(fpr,tpr,label='{}:AUC={:.5f}'.format(clf,auc_score))
+        ax1.legend()
+        # PR 曲线
+        precision, recall, thresholds=metrics.precision_recall_curve(y_true,y_proba,pos_label=1)
+        #fig2,ax2=plt.subplots()
+        ax2.plot(recall,precision,label=clf)
+        ax2.set_title('P-R Curve')
+        ax2.set_xlabel('Recall')
+        ax2.set_ylabel('Precision')
+        ax2.legend()
+        #fig2.show()
+        #密度函数和KL距离
+        #fig3,ax3=plt.subplots()
+        sns.kdeplot(y_proba[y_true==0],ax=ax3,shade=True,label='{}-0'.format(clf))
+        sns.kdeplot(y_proba[y_true==1],ax=ax3,shade=True,label='{}-1'.format(clf))
+        ax3.set_title('Density Curve')
+        ax3.legend()
+        ax3.autoscale()
+        #fig3.show()
+
+
+    if img_save:
+        fig1.savefig('roc_curve_{}.png'.format(time.strftime('%Y%m%d%H%M', time.localtime())),dpi=400)
+        fig2.savefig('pr_curve_{}.png'.format(time.strftime('%Y%m%d%H%M', time.localtime())),dpi=400)
+        fig3.savefig('density_curve_{}.png'.format(time.strftime('%Y%m%d%H%M', time.localtime())),dpi=400)
+    else:
+        fig1.show()
+        fig2.show()
+        fig3.show()
+    models_report=models_report.set_index('model')
+    #print('模型的性能评估:')
+    #print(models_report)
+    return models_report,conf_matrix
+    
+    
+    
+    
+    

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='reportgen',
-    version='0.1.7',
+    version='0.1.8',
     description=(
         'reportgen is a Python library for creating and updating analysis report.'
     ),
@@ -22,7 +22,7 @@ setup(
                  'logo.png'],
             'template':
                  ['template.pptx'],
-            'font':['readme.txt']
+            'font':['readme.txt','DroidSansFallback.ttf']
         },
     platforms=["all"],
     url='https://github.com/gasongjian/reportgen',

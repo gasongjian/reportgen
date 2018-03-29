@@ -2,3 +2,4 @@
 include reportgen/images/logo.png
 include reportgen/template/template.pptx
 include reportgen/font/readme.txt
+include reportgen/font/DroidSansFallback.ttf

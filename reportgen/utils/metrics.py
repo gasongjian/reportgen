@@ -8,116 +8,17 @@ from scipy.special import digamma
 from math import log
 import numpy.random as nr
 import random
-from sklearn.utils.multiclass import type_of_target
+
 #from collections import Iterable
 
-__all__=['WeightOfEvidence',
-'entropy',
+__all__=['entropy',
 'entropyc',
 'entropyd',
-'chisquare',
+'chi2',
 'info_value']
 
 
-'''
-# 测试数据集
-np.random.seed(100000)
-# 非数值数据
-X=pd.Series(np.random.choice(['a','b','c'],p=[0.2,0.3,0.5],size=1000))
-X2=pd.Series(np.random.normal(10,5,size=1000))
-# 数值数据
-y=pd.Series(np.random.choice(['g','b'],p=[0.7,0.3],size=1000))
-y1=pd.Series(np.random.choice(['g','b','n'],p=[0.6,0.3,0.1],size=1000))
-# 评分卡预测概率数据
-xp=np.zeros(1000)
-t1=np.random.normal(0.3,0.1,size=(y=='g').sum())
-t1[t1<0]=0
-t1[t1>1]=1
-t2=np.random.normal(0.7,0.1,size=(y=='b').sum())
-t2[t2<0]=0
-t2[t2>1]=1
-xp[y=='g']=t1
-xp[y=='b']=t2
-xp=pd.Series(xp)
-'''
-
-
-class WeightOfEvidence():
-    """计算某一离散特征的woe值
-    Attributes:
-        woe (Dict): - 训练好的证据权重
-        iv (Float): - 训练的离散特征的信息量
-    """
-
-    def __init__(self):
-        self.woe = None
-        self.iv = None
-
-    def _posibility(self, x, tag, event=1):
-        """计算触发概率
-        Parameters:
-        ----------
-            x (Sequence): - 离散特征序列
-            tag (Sequence): - 用于训练的标签序列
-            event (any): - True指代的触发事件
-        Returns:
-        ----------
-            Dict[str,Tuple[rate_T, rate_F]]: - 训练好后的好坏触发概率
-        """
-        if type_of_target(tag) not in ['binary']:
-            raise AttributeError("tag must be a binary array")
-        #if type_of_target(x) in ['continuous']:
-        #    raise AttributeError("input array must not continuous")
-        tag = np.array(tag)
-        x = np.array(x)
-        event_total = (tag == event).sum()
-        non_event_total = tag.shape[-1] - event_total
-        x_labels = np.unique(x)
-        pos_dic = {}
-        for x1 in x_labels:
-            y1 = tag[np.where(x == x1)[0]]
-            event_count = (y1 == event).sum()
-            non_event_count = y1.shape[-1] - event_count
-            rate_event = 1.0 * event_count / event_total
-            rate_non_event = 1.0 * non_event_count / non_event_total
-            pos_dic[x1] = (rate_event, rate_non_event)
-        return pos_dic
-
-    def fit(self, x, y, event=1, woe_min=-20, woe_max=20):
-        """训练对单独一项自变量(列,特征)的woe值.
-        Parameters:
-        -----------
-            x (Sequence): - 离散特征序列
-            y (Sequence): - 用于训练的标签序列
-            event (any): - True指代的触发事件
-            woe_min (munber): - woe的最小值,默认值为-20
-            woe_max (munber): - woe的最大值,默认值为20
-        """
-        woe_dict = {}
-        iv = 0
-        pos_dic = self._posibility(x=x, tag=y, event=event)
-        for l, (rate_event, rate_non_event) in pos_dic.items():
-            if rate_event == 0:
-                woe1 = woe_min
-            elif rate_non_event == 0:
-                woe1 = woe_max
-            else:
-                woe1 = np.log(rate_event / rate_non_event)  # np.log就是ln
-            iv += (rate_event - rate_non_event) * woe1
-            woe_dict[l] = woe1
-        self.woe = woe_dict
-        self.iv = iv
-
-    def transform(self, X):
-        """将离散特征序列转换为woe值组成的序列
-        Parameters:
-            X (Sequence): - 离散特征序列
-        Returns:
-            numpy.array: - 替换特征序列枚举值为woe对应数值后的序列
-        """
-        return np.array([self.woe.get(i) for i in X])
-
-
+# 待定，还未修改好
 class feature_encoder():
     '''
     用于单个特征对因变量的分析，如
@@ -164,21 +65,34 @@ class feature_encoder():
 
 
 
-def chisquare(X,y):
+def chi2(X,y):
+    '''计算一组数据的卡方值，弥补sklearn中的chi2只支持2*2的缺憾
+    parameter
+    ----------
+    X:可以是单个特征，也可以是一组特征
+    y:目标变量
+    
+    return
+    ------
+    chi2_value: np.array 数组
+    chi2_pvalue：np.array 数组
     '''
-    计算一组数据的卡方值
-    '''
-    chi2_value=pd.Series(index=X.columns)
-    chi2_pvalue=pd.Series(index=X.columns)
+    X=np.asarray(X)
+    if len(X.shape)==1:
+        X=X.reshape((len(X),1))
+    X=pd.DataFrame(X)
+    chi2_value=[]
+    chi2_pvalue=[]
     for c in X.columns:
         fo=pd.crosstab(X[c],y)
         s=stats.chi2_contingency(fo)
-        chi2_value[c]=s[0]
-        chi2_pvalue[c]=s[1]
-    return (chi2_value,chi2_pvalue)
+        chi2_value.append(s[0])
+        chi2_pvalue.append(s[1])
+    return (np.array(chi2_value),np.array(chi2_pvalue))
 
 
 
+# 待定
 def info_value(X,y,bins='auto'):
     '''计算连续变量的IV值
     计算X和y之间的IV值
@@ -209,7 +123,7 @@ def info_value(X,y,bins='auto'):
 
 
 
-
+# 计算离散随机变量的熵
 class entropy:
 
     '''
@@ -328,7 +242,7 @@ class entropy:
 
 
 
-# CONTINUOUS ESTIMATORS
+# 计算连续变量的熵（利用分布进行近似 CONTINUOUS ESTIMATORS）
 class entropyc:
 
     '''
@@ -340,6 +254,12 @@ class entropyc:
 
     连续分布的熵估计
     '''
+    
+    def __reshape(x):
+        x=np.asarray(x)
+        if len(x.shape)==1:
+            x=x.reshape((len(x),1))
+        return x
 
     def entropy(x, k=3, base=2):
         """
@@ -366,9 +286,7 @@ class entropyc:
         -------
         entropy
         """
-        x=np.asarray(x)
-        if len(x.shape)==1:
-            x=x.reshape((len(x),1))
+        x=entropyc.__reshape(x)
         assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
         d = len(x[0])
         N = len(x)
@@ -387,19 +305,19 @@ class entropyc:
       hy = entropyc.entropy(y, k, base)
       return hxy - hy
 
-    def _column(xs, i):
+    def __column(xs, i):
       return [[x[i]] for x in xs]
 
     def tc(xs, k=3, base=2):
-      xis = [entropyc.entropy(entropyc._column(xs, i), k, base) for i in range(0, len(xs[0]))]
+      xis = [entropyc.entropy(entropyc.__column(xs, i), k, base) for i in range(0, len(xs[0]))]
       return np.sum(xis) - entropyc.entropy(xs, k, base)
 
     def ctc(xs, y, k=3, base=2):
-      xis = [entropyc.cond_entropy(entropyc._column(xs, i), y, k, base) for i in range(0, len(xs[0]))]
+      xis = [entropyc.cond_entropy(entropyc.__column(xs, i), y, k, base) for i in range(0, len(xs[0]))]
       return np.sum(xis) - entropyc.cond_entropy(xs, y, k, base)
 
     def corex(xs, ys, k=3, base=2):
-      cxis = [entropyc.mutual_info(entropyc._column(xs, i), ys, k, base) for i in range(0, len(xs[0]))]
+      cxis = [entropyc.mutual_info(entropyc.__column(xs, i), ys, k, base) for i in range(0, len(xs[0]))]
       return np.sum(cxis) - entropyc.mutual_info(xs, ys, k, base)
 
     def mutual_info(x, y, k=3, base=2):
@@ -407,6 +325,8 @@ class entropyc:
             x, y should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
             if x is a one-dimensional scalar and we have four samples
         """
+        x=entropyc.__reshape(x)
+        y=entropyc.__reshape(y)
         assert len(x) == len(y), "Lists should have same length"
         assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
         intens = 1e-10  # small noise to break degeneracy, see doc.
@@ -425,6 +345,9 @@ class entropyc:
             x, y, z should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
             if x is a one-dimensional scalar and we have four samples
         """
+        x=entropyc.__reshape(x)
+        y=entropyc.__reshape(y)
+        z=entropyc.__reshape(z)
         assert len(x) == len(y), "Lists should have same length"
         assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
         intens = 1e-10  # small noise to break degeneracy, see doc.
@@ -444,6 +367,8 @@ class entropyc:
             x, xp should be a list of vectors, e.g. x = [[1.3], [3.7], [5.1], [2.4]]
             if x is a one-dimensional scalar and we have four samples
         """
+        x=entropyc.__reshape(x)
+        xp=entropyc.__reshape(xp)
         assert k <= len(x) - 1, "Set k smaller than num. samples - 1"
         assert k <= len(xp) - 1, "Set k smaller than num. samples - 1"
         assert len(x[0]) == len(xp[0]), "Two distributions must have same dim."
@@ -455,9 +380,11 @@ class entropyc:
         treep = ss.cKDTree(xp)
         nn = [tree.query(point, k + 1, p=float('inf'))[0][k] for point in x]
         nnp = [treep.query(point, k, p=float('inf'))[0][k - 1] for point in x]
-        return (const + d * np.mean(map(log, nnp)) - d * np.mean(map(log, nn))) / log(base)
+        return (const + d * np.mean(list(map(log, nnp))) - d * np.mean(list(map(log, nn)))) / log(base)
 
-    # DISCRETE ESTIMATORS
+
+
+# 计算随机变量的熵（直接离散话估计 DISCRETE ESTIMATORS）
 class entropyd:
 
     def entropy(sx, base=2):
