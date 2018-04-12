@@ -125,7 +125,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         检测因子变量时，如果一个特征的nunique小于criterion,则判定为因子变量
     min_mean_counts: default 5,数值型判定为因子变量时，需要满足每个类别的平均频数要大于min_mean_counts
     fix: bool,是否返回修改好类型的数据
-    
+
 
     return:
     result:dict{
@@ -135,7 +135,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         'categories':所有的因子}
 
     '''
-        
+
     assert len(data.shape)==1
     data=data.copy()
     data=pd.Series(data)
@@ -171,7 +171,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     elif is_string_dtype(dtype):
         # 处理时间类型
         tmp=data.map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
-        tmp=tmp.dropna().astype(np.int64)       
+        tmp=tmp.dropna().astype(np.int64)
         if not(any(data.dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
                 data=pd.to_datetime(data)
@@ -226,7 +226,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     else:
         print('unknown dtype!')
         result=None
-        
+
     if fix:
         return result,data
     else:
@@ -354,7 +354,7 @@ def describe(data):
     对每个变量生成统计指标特征
     对于每一个变量，生成如下字段：
         数据类型：
-        最大值/频数最大的那个： 
+        最大值/频数最大的那个：
         最小值/频数最小的那个：
         均值/频数中间的那个：
         缺失率：
@@ -371,7 +371,7 @@ def describe(data):
             max_value,min_value,mean_value=data[c].max(),data[c].min(),data[c].mean()
             std_value=data[c].std()
             summary.loc[:,c]=[var_type[c],max_value,min_value,mean_value,missing_pct,std_value]
-        elif var_type[c] == 'category':
+        elif var_type[c] == 'category' or is_categorical_dtype(data[c].dtype):
             tmp=data[c].value_counts()
             max_value,min_value=tmp.argmax(),tmp.argmin()
             mean_value_index=tmp[tmp==tmp.median()].index
@@ -414,14 +414,20 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
             fig,ax=plt.subplots()
         if chart_type in ['hist','kde']:
             for c in data.columns:
-                sns.kdeplot(data[c].dropna(),shade=True,ax=ax)
+                if len(data[c].dropna())>10:
+                    sns.kdeplot(data[c].dropna(),shade=True,ax=ax)
+                else:
+                    print('reportgen.plot:: ',c,'have no valid data!')
             legend_label=ax.get_legend_handles_labels()
             if len(legend_label)>0 and len(legend_label[0])>0:
                 ax.legend()
             ax.axis('auto')
         elif chart_type in ['dist']:
             for c in data.columns:
-                sns.distplot(data[c].dropna(),ax=ax)
+                if len(data[c].dropna())>10:
+                    sns.distplot(data[c].dropna(),ax=ax)
+                else:
+                    print('reportgen.plot:: ',c,'have no valid data!')
             legend_label=ax.get_legend_handles_labels()
             if len(legend_label)>0 and len(legend_label[0])>0:
                 ax.legend()
@@ -493,7 +499,7 @@ def AnalysisReport(data,filename=None,var_list=None):
     for v in var_list:
         vtype=v['vtype']
         name=v['name']
-        vlist=v['vlist']       
+        vlist=v['vlist']
         #print(name,':',vtype)
         if vtype == 'number':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
@@ -548,7 +554,7 @@ def AnalysisReport(data,filename=None,var_list=None):
                     slides_data.append(slide_data)
                     os.remove('tmp.png')
             except:
-                print('cannot understand : {}'.format(name))
+                print('cannot understand the field: {}'.format(name))
                 pass
         elif vtype == 'group_number':
             tmp=pd.DataFrame(data.loc[:,vlist].mean())
@@ -563,20 +569,20 @@ def AnalysisReport(data,filename=None,var_list=None):
             print('unknown type: {}'.format(name))
     p.save(os.path.splitext(filename)[0]+'.pptx')
     return slides_data
-    
-    
-    
+
+
+
 def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     '''二分类模型评估（后期可能会修改为多分类）
     真实数据和预测数据之间的各种可视化和度量
-    
+
     parameters:
     -----------
     y_true: array_like 真实的标签,binary
     y_preds: dict or array_like. 预测的标签，binary,可以用 dict 存储多个模型的预测标签数据
     y_probas: dict or array_like. 预测的概率，0-1,可以用 dict 存储多个模型的预测标签数据
     img_save：Bool，是否直接将图片保存到本地
-    
+
     return:
     ---------
     models_report: 各模型的各种评估数据
@@ -666,8 +672,3 @@ def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     #print('模型的性能评估:')
     #print(models_report)
     return models_report,conf_matrix
-    
-    
-    
-    
-    
