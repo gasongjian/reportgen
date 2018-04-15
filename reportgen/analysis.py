@@ -44,6 +44,7 @@ __all__=['type_of_var',
          'describe',
          'plot',
          'features_analysis',
+         'distributions',
          'AnalysisReport',
          'ClassifierReport']
 
@@ -61,7 +62,7 @@ def _freedman_diaconis_bins(a):
 
 
 
-def distributions(a,hist=True,bins=None,norm_hist=True,kde=True,grid=None,gridsize=100,clip=None):
+def distributions(a,hist=True,bins=None,norm_hist=True,kde=False,grid=None,gridsize=100,clip=None):
     '''数组的分布信息
     hist=True,则返回分布直方图(counts,bins)
     kde=True,则返回核密度估计数组(grid,y)
@@ -388,7 +389,7 @@ def describe(data):
 
 
 def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
-    '''auto choose the best chart type to draw the data
+    '''auto choose the best chart type to draw the data 【还没完全写好】
     paremeter
     -----------
     figure_type: 'mpl' or 'pptx' or 'html'
@@ -420,8 +421,13 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
                 else:
                     print('reportgen.plot:: ',c,'have no valid data!')
             legend_label=ax.get_legend_handles_labels()
-            if len(legend_label)>0 and len(legend_label[0])>0:
+            if len(legend_label)>0 and len(legend_label[0])>1:
                 ax.legend()
+            else:
+                try:
+                    ax.legend_.remove()
+                except:
+                    pass
             ax.axis('auto')
         elif chart_type in ['dist']:
             for c in data.columns:
@@ -430,8 +436,13 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
                 else:
                     print('reportgen.plot:: ',c,'have no valid data!')
             legend_label=ax.get_legend_handles_labels()
-            if len(legend_label)>0 and len(legend_label[0])>0:
+            if len(legend_label)>0 and len(legend_label[0])>1:
                 ax.legend()
+            else:
+                try:
+                    ax.legend_.remove()
+                except:
+                    pass
             ax.axis('auto')
         elif chart_type in ['scatter']:
             ax.xaxis.set_ticks_position('none')
@@ -457,6 +468,26 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
             pass
         chart['ax']=ax
         return chart
+    if figure_type in ['pptx']:
+        chart['type']='pptx'
+        count,bins=distributions(data.iloc[:,0].dropna(),kde=False)
+        if all(pd.Series(bins).astype(int)==bins):
+            decimals_format='{:.0f}~'
+        else:
+            decimals_format='{:.2f}~'
+        bins_index=[decimals_format.format(b) for b in bins[:-1]]
+        decimals_format=decimals_format[:-1]
+        bins_index[-1]=bins_index[-1]+decimals_format.format(bins[-1])
+        
+        chart_data=pd.DataFrame({'frequency':count*100},index=bins_index)
+        chart['chart_data']=chart_data
+        if isinstance(ax,_rpt.Report):
+            slide_data={'data':chart_data,'slide_type':'chart'}
+            ax.add_slide(data=slide_data,title='',summary='',footnote='')
+        # 暂时空缺，后期会将ax修改为Report接口
+        chart['ax']=ax
+        return chart
+
 
 # 仅测试用
 def features_analysis(X,y=None,out_file=None,categorical_features=[],number_features=[],\
@@ -597,7 +628,8 @@ def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report
         name=v['name']
         vlist=v['vlist']       
         #print(name,':',vtype)
-        if vtype == 'number':
+        # 之前的方案，暂时留着测试用，后期稳定后删除
+        if vtype == 'number_test':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
             chart['fig'].savefig('kdeplot1.png',dpi=200)
             chart['fig'].clf()
@@ -614,6 +646,20 @@ def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report
             slides_data.append(slide_data)
             os.remove('kdeplot1.png')
             os.remove('kdeplot2.png')
+
+        if vtype == 'number':
+            chart=plot(data[name],figure_type='mpl',chart_type='kde')
+            chart['fig'].savefig('kdeplot.png',dpi=200)
+            chart['fig'].clf()
+            del chart
+            chart=plot(data[name],figure_type='pptx',chart_type='bar')
+            summary='''MIN: {}, MAX: {}, MEAN: {:.2f}, STD: {:.2f}'''\
+            .format(data[name].min(),data[name].max(),data[name].mean(),data[name].std())
+            footnote='注: 样本N={}'.format(data[name].count())
+            slide_data=[{'data':chart['chart_data'],'slide_type':'chart'},{'data':'kdeplot.png','slide_type':'picture'}]
+            p.add_slide(data=slide_data,title=name+' 的分析',summary=summary,footnote=footnote)
+            slides_data.append(slide_data)
+            os.remove('kdeplot.png')
         elif vtype == 'category':
             tmp=pd.DataFrame(data[name].value_counts())
             tmp=tmp*100/tmp.sum()#转换成百分数
