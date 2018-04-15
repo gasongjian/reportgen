@@ -43,6 +43,7 @@ if font_path:
 __all__=['type_of_var',
          'describe',
          'plot',
+         'features_analysis',
          'AnalysisReport',
          'ClassifierReport']
 
@@ -125,7 +126,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         检测因子变量时，如果一个特征的nunique小于criterion,则判定为因子变量
     min_mean_counts: default 5,数值型判定为因子变量时，需要满足每个类别的平均频数要大于min_mean_counts
     fix: bool,是否返回修改好类型的数据
-
+    
 
     return:
     result:dict{
@@ -135,7 +136,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         'categories':所有的因子}
 
     '''
-
+        
     assert len(data.shape)==1
     data=data.copy()
     data=pd.Series(data)
@@ -171,7 +172,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     elif is_string_dtype(dtype):
         # 处理时间类型
         tmp=data.map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
-        tmp=tmp.dropna().astype(np.int64)
+        tmp=tmp.dropna().astype(np.int64)       
         if not(any(data.dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
                 data=pd.to_datetime(data)
@@ -226,7 +227,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     else:
         print('unknown dtype!')
         result=None
-
+        
     if fix:
         return result,data
     else:
@@ -354,7 +355,7 @@ def describe(data):
     对每个变量生成统计指标特征
     对于每一个变量，生成如下字段：
         数据类型：
-        最大值/频数最大的那个：
+        最大值/频数最大的那个： 
         最小值/频数最小的那个：
         均值/频数中间的那个：
         缺失率：
@@ -457,9 +458,103 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
         chart['ax']=ax
         return chart
 
+# 仅测试用
+def features_analysis(X,y=None,out_file=None,categorical_features=[],number_features=[],\
+max_leafs=5):
+    '''
+    categorical_features=None
+    number_features=None
+    categorical_features=[] if categorical_features is None else categorical_features
+    number_features=[] if number_features is None else number_features
+    X=data
+    '''
+    from graphviz import Digraph
+    import pydotplus
+    N=len(X)
+    X=X.copy()
+    if len(categorical_features)==0:
+        var_type=type_of_var(X)
+        categorical_features=[k for k in var_type if var_type[k]=='category']
+ 
+    #categorical_features=['grade','target','term']
+    #number_features=['tot_cur_bal','annual_inc']
+    X['_count_']=range(len(X))
+    # 根据唯一值个数的不同从小到大排列特征的顺序
+    nunique=X[categorical_features].apply(pd.Series.nunique).sort_values()
+    categorical_features=list(nunique.index)
+    for k in nunique[nunique>5].index:
+        topitems=X[k].value_counts().sort_values(ascending=False)
+        X[k]=X[k].replace(dict(zip(topitems.index[(max_leafs-1):],['others']*(len(topitems)-max_leafs+1))))
+    tmp=X.groupby(categorical_features)
+    
+    # 针对因子变量计数，针对数值变量，计算分组均值
+    aggfun={'_count_':'count'}
+    for k in number_features:
+        aggfun.update({k:'mean'})
+    count_data=tmp.agg(aggfun)
+    
+    # 每一个节点，定义一些属性1，父节点, 特征名称, value,
+    
+    # 生成节点的索引表格
+    names=count_data.index.names
+    levels=count_data.index.levels
+    labels=pd.DataFrame(count_data.index.labels).T
+    labels.columns=names
+    for i in range(len(names)):
+        labels[names[i]]=labels[names[i]].replace(dict(zip(range(len(levels[i])),levels[i])))
+    labels_node=pd.DataFrame(index=labels.index,columns=labels.columns)
+    #labels_prenode=pd.DataFrame(index=labels.index,columns=labels.columns)
+    dot=Digraph()
+    nodes=[{'id':0,'column':'start','value':None}]
+    dot.node(str(nodes[-1]['id']),'Total\n{} , 100%'.format(N),shape="diamond")
+    
+    for c in range(len(labels.columns)):
+        if c==len(labels.columns)-1:
+            count_data_tmp=count_data.copy()
+        else:
+            count_data_tmp=X.groupby(names[:c+1]).agg(aggfun)
+        for i in range(len(labels.index)):
+            value=labels.iloc[i,c]
+            if value!=nodes[-1]['value'] and c!=nodes[-1]['column']:
+                # 增加一个新节点
+                addnode={'id':nodes[-1]['id']+1,'column':names[c],'value':value}
+                nodes.append(addnode)
+                node_id=str(nodes[-1]['id'])
+                #cond=labels.iloc[i,:c+1]
+                #n=_cal_count(X,labels.iloc[i,:c+1])
+                if len(count_data_tmp.index.names)==1:
+                    n=count_data_tmp.loc[labels.iloc[i,c],'_count_']
+                else:
+                    n=count_data_tmp.xs(list(labels.iloc[i,:c+1]))['_count_']
+                label='{} = {}\ncount:{:.0f} , {:.2f}%'.format(names[c],value,n,n*100/N)
+                for k in number_features:
+                    if len(count_data_tmp.index.names)==1:
+                        vmean=count_data_tmp.loc[labels.iloc[i,c],k]
+                    else:
+                        vmean=count_data_tmp.xs(list(labels.iloc[i,:c+1]))[k]
+                    label=label+'\n{}: {:.1f}'.format(k,vmean)
+                dot.node(node_id,label)
+                if c==0:
+                    pre_node_id='0'
+                else:
+                    pre_node_id=labels_node.iloc[i,c-1]
+                dot.edge(pre_node_id,node_id)
+                #print('---创建节点{},节点信息如下'.format(node_id))
+                #print(label)
+                #print('{} 连接节点{}'.format(node_id,pre_node_id))
+            #labels_prenode.iloc[i,c]=pre_node_id
+            labels_node.iloc[i,c]=str(nodes[-1]['id'])
+    if out_file is not None:
+        graph=pydotplus.graphviz.graph_from_dot_data(dot.source)
+        graph.write(out_file,format=os.path.splitext(out_file)[1][1:])
+        #graph.write_png(out_file)
+    else:
+        dot.view()
+        return dot
 
 
-def AnalysisReport(data,filename=None,var_list=None):
+
+def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report=False):
     '''
     直接生成报告
     '''
@@ -485,21 +580,22 @@ def AnalysisReport(data,filename=None,var_list=None):
         return None
 
     summary=describe(data)
-    n_cut=round(summary.shape[1]/10)
+    f_cut=10# 每一页展示的最大字段数
+    n_cut=round(summary.shape[1]/f_cut)
     n_cut=1 if n_cut==0 else n_cut
     for i in range(n_cut):
         if i!=n_cut-1:
-            summary_tmp=summary.iloc[:,10*i:10*i+10]
+            summary_tmp=summary.iloc[:,f_cut*i:f_cut*i+f_cut]
         else:
-            summary_tmp=summary.iloc[:,10*i:]
+            summary_tmp=summary.iloc[:,f_cut*i:]
         slide_data={'data':summary_tmp,'slide_type':'table'}
-        title='数据字段描述{}'.format(i+1) if n_cut>1 else '数据字段描述'
+        title='数据字段描述{}-{}'.format(i*f_cut+1,min(summary.shape[1],i*f_cut+f_cut))
         p.add_slide(data=slide_data,title=title)
 
     for v in var_list:
         vtype=v['vtype']
         name=v['name']
-        vlist=v['vlist']
+        vlist=v['vlist']       
         #print(name,':',vtype)
         if vtype == 'number':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
@@ -567,22 +663,25 @@ def AnalysisReport(data,filename=None,var_list=None):
             print('The field: {} may be id or need to be designed'.format(name))
         else:
             print('unknown type: {}'.format(name))
-    p.save(os.path.splitext(filename)[0]+'.pptx')
-    return slides_data
 
-
-
+    if save_pptx:
+        p.save(os.path.splitext(filename)[0]+'.pptx')
+    if return_report:
+        return p,slides_data       
+    
+    
+    
 def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     '''二分类模型评估（后期可能会修改为多分类）
     真实数据和预测数据之间的各种可视化和度量
-
+    
     parameters:
     -----------
     y_true: array_like 真实的标签,binary
     y_preds: dict or array_like. 预测的标签，binary,可以用 dict 存储多个模型的预测标签数据
     y_probas: dict or array_like. 预测的概率，0-1,可以用 dict 存储多个模型的预测标签数据
     img_save：Bool，是否直接将图片保存到本地
-
+    
     return:
     ---------
     models_report: 各模型的各种评估数据
@@ -672,3 +771,8 @@ def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     #print('模型的性能评估:')
     #print(models_report)
     return models_report,conf_matrix
+    
+    
+    
+    
+    

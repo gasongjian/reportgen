@@ -15,7 +15,7 @@ pd.set_option('display.float_format', lambda x: '%.2f' % x)
 from . import config
 from .utils import Delaunay2D
 
-import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 import seaborn as sns
 
 from pptx import Presentation
@@ -728,18 +728,26 @@ def genwordcloud(texts,mask=None,font_path=None,background_color='white'):
 
 class Report():
     '''
-    报告自动生成工具
-    r=Report(filename='')
-    r.add_cover(title='reportgen')
-    r.add_slides([])
-    r.save()
+    底层的类，负责一个 pptx 报告的相关接口
+    parameters:
+    -----------
+    filename: pptx 文件路径，若无则新建一个文件
+    chart_type_default: 默认的图表类型
+    layouts_default: 新建slide时默认使用的 pptx 模板
+    title: 报告的名称
+    author: 报告的作者
+    
+    example：
+    ---------
+    >>>r=Report(filename='')
+    >>>r.add_cover(title='reportgen')
+    >>>r.add_slides([])
+    >>>r.save()
     '''
-    def __init__(self,filename=None,chart_type_default='COLUMN_CLUSTERED'):
-        '''
-        默认绘图类型后期会改为auto
-        '''
-
-        self.filename=filename
+    def __init__(self,filename=None,chart_type_default='COLUMN_CLUSTERED',**kwargs):
+        self.title=None
+        self.author=None
+        # self.filename = filename #导入一个存在的pptx文件
         self.chart_type_default=chart_type_default
         if filename is None:
             if os.path.exists('template.pptx'):
@@ -749,6 +757,8 @@ class Report():
             else:
                 prs=Presentation()
         else :
+            # 分离出路径中的文件名
+            self.title=os.path.splitext(os.path.split(filename)[1])[0]
             prs=Presentation(filename)
         self.prs=prs
         title_only_slide=self._layouts()
@@ -757,6 +767,8 @@ class Report():
         else:
             layouts=[0,0]
         self.layouts_default=layouts
+        for k in kwargs:
+            setattr(self,k.lower(),kwargs[k])
 
 
     def _layouts(self):
@@ -831,7 +843,7 @@ class Report():
 
 
     def add_slides(self,slides_data,chart_type_default=None):
-        '''
+        '''！使用的接口和下方的add_slide不一样，建议使用add_slide
         slides_data: 每一页ppt所需要的元素[
             {title:,#标题
             summary:,#结论
@@ -872,20 +884,25 @@ class Report():
 
 
     def add_cover(self,title='',author='',style='default',layouts='auto',size=[8,6]):
-        title =u'Analysis Report Powered by reportgen' if len(title)==0 else title
-        #author =u'report' if len(author)==0 else author
+        if len(title) == 0:
+            title = 'Analysis Report Powered by reportgen' if self.title is None else self.title
+        if len(author) == 0:
+            author='' if self.author is None else self.author
+        title=title+'\n作者: '+author if len(author)>0 else title
         layouts=self.layouts_default if layouts == 'auto' else layouts
         if style == 'default':
             self.prs=plot_cover(self.prs,title=title,layouts=layouts,xspace=size[0],yspace=size[1]);
 
 
 
-    def location_suggest(self,num=1,rate=0.78):
+    def location_suggest(self,num=1,rate=0.78,data=None,summary=None):
         '''统一管理slides各个模块的位置
         parameter
         --------
         num: 主体内容（如图、外链图片、文本框等）的个数，默认从左到右依次排列
         rate: 主体内容的宽度综合
+        data: list,通过数据类型智能判断位置，如有，则 num 失效
+        summary：如果summary为空，则非图表等位置都会上移动
 
         return
         -----
@@ -906,7 +923,8 @@ class Report():
             data_loc=config.data_loc
         else:
             data_loc=[0.11,0.30,0.78,0.60]
-
+            
+        num=len(data) if isinstance(data,list) else num
         locations={}
         locations['summary']={'l':Emu(summary_loc[0]*slide_width),'t':Emu(summary_loc[1]*slide_height),\
                  'w':Emu(summary_loc[2]*slide_width),'h':Emu(summary_loc[3]*slide_height)}
@@ -917,6 +935,8 @@ class Report():
         '''
         控制主体的宽度为78%，且居中显示。
         '''
+        if (summary is not None) and len(summary)==0:
+            data_loc[1]=data_loc[1]*0.84
         if num>1:
             left=[(1-rate)*(i+1)/(float(num)+1)+rate*i/float(num) for i in range(num)]
             top=[data_loc[1]]*num
@@ -925,11 +945,17 @@ class Report():
             locations['data']=[{'l':Emu(left[i]*slide_width),'t':Emu(top[i]*slide_height),\
                      'w':Emu(width[i]*slide_width),'h':Emu(height[i]*slide_height)} for i in range(num)]
         else:
+            # 暂时只修正单张图片常常不居中的问题，后期会修正多张图片         
+            if data[0]['slide_type'] == 'picture':
+                imgdata=mpimg.imread(data[0]['data'])
+                img_height,img_width=imgdata.shape[:2]
+                img_width_in_pptx=data_loc[3]*slide_height*img_width/img_height/slide_width
+                data_loc[0]=0.5-img_width_in_pptx/2
+
             locations['data']=[{'l':Emu(data_loc[0]*slide_width),'t':Emu(data_loc[1]*slide_height),\
                      'w':Emu(data_loc[2]*slide_width),'h':Emu(data_loc[3]*slide_height)}]
 
         return locations
-
 
     def add_slide(self,data=[],title='',summary='',footnote='',layouts='auto',**kwarg):
         '''通用格式
@@ -963,7 +989,7 @@ class Report():
                 data[i]={'data':d,'slide_type':slide_type,'type':chart_type}
 
         # 各个模板的位置
-        locations=self.location_suggest(len(data))
+        locations=self.location_suggest(data=data,summary=summary)
         summary_loc=locations['summary']
         footnote_loc=locations['footnote']
         data_loc=locations['data']
@@ -1098,5 +1124,7 @@ class Report():
 
 
     def save(self,filename=None):
-        filename=self.filename+time.strftime('_%Y%m%d%H%M.pptx', time.localtime()) if filename is None else filename
+        assert (filename is not None) or (self.title is not None)
+        filename=self.title+time.strftime('_%Y%m%d%H%M.pptx', time.localtime()) if filename is None else filename
+        filename=os.path.splitext(filename)[0]+'.pptx'
         self.prs.save(filename)
