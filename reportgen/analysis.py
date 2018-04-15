@@ -53,6 +53,8 @@ def _freedman_diaconis_bins(a):
     """Calculate number of hist bins using Freedman-Diaconis rule."""
     # From http://stats.stackexchange.com/questions/798/
     a = np.asarray(a)
+    assert len(a.shape)>0
+    assert len(a)>0
     h = 2 * iqr(a) / (len(a) ** (1 / 3))
     # fall back to sqrt(a) bins if iqr is 0
     if h == 0:
@@ -127,7 +129,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         检测因子变量时，如果一个特征的nunique小于criterion,则判定为因子变量
     min_mean_counts: default 5,数值型判定为因子变量时，需要满足每个类别的平均频数要大于min_mean_counts
     fix: bool,是否返回修改好类型的数据
-    
+
 
     return:
     result:dict{
@@ -137,7 +139,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
         'categories':所有的因子}
 
     '''
-        
+
     assert len(data.shape)==1
     data=data.copy()
     data=pd.Series(data)
@@ -173,7 +175,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     elif is_string_dtype(dtype):
         # 处理时间类型
         tmp=data.map(lambda x: np.nan if '%s'%x == 'nan' else len('%s'%x))
-        tmp=tmp.dropna().astype(np.int64)       
+        tmp=tmp.dropna().astype(np.int64)
         if not(any(data.dropna().map(is_number))) and 7<tmp.max()<20 and tmp.std()<0.1:
             try:
                 data=pd.to_datetime(data)
@@ -228,7 +230,7 @@ datetime_to_category=True,criterion='sqrt',min_mean_counts=5,fix=False):
     else:
         print('unknown dtype!')
         result=None
-        
+
     if fix:
         return result,data
     else:
@@ -302,6 +304,7 @@ def var_detection(data,combine=True):
         result,tmp=dtype_detection(data[c],fix=True)
         data[c]=tmp
         if result is not None:
+            result['vlist']=[c]
             var_list.append(result)
     if not(combine):
         return var_list,data
@@ -356,7 +359,7 @@ def describe(data):
     对每个变量生成统计指标特征
     对于每一个变量，生成如下字段：
         数据类型：
-        最大值/频数最大的那个： 
+        最大值/频数最大的那个：
         最小值/频数最小的那个：
         均值/频数中间的那个：
         缺失率：
@@ -409,6 +412,7 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
 
     # 绘制部分
     data=pd.DataFrame(data)
+    assert len(data.dropna())>0
     chart={}
     if figure_type in ['mpl','matplotlib']:
         chart['type']='mpl'
@@ -478,7 +482,7 @@ def plot(data,figure_type='auto',chart_type='auto',vertical=False,ax=None):
         bins_index=[decimals_format.format(b) for b in bins[:-1]]
         decimals_format=decimals_format[:-1]
         bins_index[-1]=bins_index[-1]+decimals_format.format(bins[-1])
-        
+
         chart_data=pd.DataFrame({'frequency':count*100},index=bins_index)
         chart['chart_data']=chart_data
         if isinstance(ax,_rpt.Report):
@@ -506,7 +510,7 @@ max_leafs=5):
     if len(categorical_features)==0:
         var_type=type_of_var(X)
         categorical_features=[k for k in var_type if var_type[k]=='category']
- 
+
     #categorical_features=['grade','target','term']
     #number_features=['tot_cur_bal','annual_inc']
     X['_count_']=range(len(X))
@@ -517,15 +521,15 @@ max_leafs=5):
         topitems=X[k].value_counts().sort_values(ascending=False)
         X[k]=X[k].replace(dict(zip(topitems.index[(max_leafs-1):],['others']*(len(topitems)-max_leafs+1))))
     tmp=X.groupby(categorical_features)
-    
+
     # 针对因子变量计数，针对数值变量，计算分组均值
     aggfun={'_count_':'count'}
     for k in number_features:
         aggfun.update({k:'mean'})
     count_data=tmp.agg(aggfun)
-    
+
     # 每一个节点，定义一些属性1，父节点, 特征名称, value,
-    
+
     # 生成节点的索引表格
     names=count_data.index.names
     levels=count_data.index.levels
@@ -538,7 +542,7 @@ max_leafs=5):
     dot=Digraph()
     nodes=[{'id':0,'column':'start','value':None}]
     dot.node(str(nodes[-1]['id']),'Total\n{} , 100%'.format(N),shape="diamond")
-    
+
     for c in range(len(labels.columns)):
         if c==len(labels.columns)-1:
             count_data_tmp=count_data.copy()
@@ -585,12 +589,12 @@ max_leafs=5):
 
 
 
-def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report=False):
+def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report=False,combine=False):
     '''
     直接生成报告
     '''
     if var_list is None:
-        var_list,data=var_detection(data)
+        var_list,data=var_detection(data,combine=combine)
         #print(var_list)
         #print('============')
 
@@ -626,8 +630,11 @@ def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report
     for v in var_list:
         vtype=v['vtype']
         name=v['name']
-        vlist=v['vlist']       
+        vlist=v['vlist']
         #print(name,':',vtype)
+        if len(data.loc[:,vlist].dropna())==0:
+            print('the field: ',name,'have no valid data!')
+            continue
         # 之前的方案，暂时留着测试用，后期稳定后删除
         if vtype == 'number_test':
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
@@ -648,6 +655,9 @@ def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report
             os.remove('kdeplot2.png')
 
         if vtype == 'number':
+            if len(data[name].dropna())==1:
+                print('the fiele ',name,' of number type must have more than two items.')
+                continue
             chart=plot(data[name],figure_type='mpl',chart_type='kde')
             chart['fig'].savefig('kdeplot.png',dpi=200)
             chart['fig'].clf()
@@ -713,21 +723,21 @@ def AnalysisReport(data,filename=None,var_list=None,save_pptx=True,return_report
     if save_pptx:
         p.save(os.path.splitext(filename)[0]+'.pptx')
     if return_report:
-        return p,slides_data       
-    
-    
-    
+        return p,slides_data
+
+
+
 def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     '''二分类模型评估（后期可能会修改为多分类）
     真实数据和预测数据之间的各种可视化和度量
-    
+
     parameters:
     -----------
     y_true: array_like 真实的标签,binary
     y_preds: dict or array_like. 预测的标签，binary,可以用 dict 存储多个模型的预测标签数据
     y_probas: dict or array_like. 预测的概率，0-1,可以用 dict 存储多个模型的预测标签数据
     img_save：Bool，是否直接将图片保存到本地
-    
+
     return:
     ---------
     models_report: 各模型的各种评估数据
@@ -817,8 +827,3 @@ def ClassifierReport(y_true,y_preds,y_probas,img_save=False):
     #print('模型的性能评估:')
     #print(models_report)
     return models_report,conf_matrix
-    
-    
-    
-    
-    
