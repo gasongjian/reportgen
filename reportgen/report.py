@@ -958,11 +958,18 @@ class Report():
         return locations
 
     def add_slide(self,data=[],title='',summary='',footnote='',layouts='auto',**kwarg):
-        '''通用格式
+        '''通用函数，添加一页幻灯片
+        parameter
+        ---------
         data=[{'data':,'slide_type':,'type':,},] # 三个是必须字段，其他根据slide_type不同而不同
-        number_format_data: 图的数据标签
-        number_format_tick: 横纵坐标的数据标签
-
+        title: 标题
+        summary: 小结论
+        footnote: 脚注
+        layouts: 使用的母版样式
+        legend: bool,是否画网格线
+        data_labels: bool,是否画数据标签
+        number_format_data: 图的数据标签格式
+        number_format_tick: 横纵坐标的数据标签格式
         '''
         #slide_width=self.prs.slide_width
         #slide_height=self.prs.slide_height
@@ -1069,8 +1076,9 @@ class Report():
                     continue
                 font_default_size=Pt(10) if 'font_default_size' not in config.__dict__ else config.font_default_size
                 # 添加图例
-                if (dd['data'].shape[1]>1) or (chart_type=='PIE'):
-                    chart.has_legend = True
+                has_legend=kwarg['legend'] if 'legend' in kwarg else True
+                if has_legend and ((dd['data'].shape[1]>1) or (chart_type=='PIE')):
+                    chart.has_legend = has_legend
                     chart.legend.font.size=font_default_size
                     chart.legend.position = XL_LEGEND_POSITION.BOTTOM
                     chart.legend.include_in_layout = False
@@ -1104,11 +1112,22 @@ class Report():
                 if 'number_format_tick' in dd:
                     number_format2=dd['number_format_tick']
                     
+                if 'number_format_data' in kwarg:
+                    number_format1=kwarg['number_format_data']
+                if 'number_format_tick' in kwarg:
+                    number_format2=kwarg['number_format_tick']
+                    
+                if 'data_labels' in kwarg:
+                    has_data_labels = kwarg['data_labels']
+                else:
+                    has_data_labels=True
+                    
                 if (chart_type not in non_available_list) or (chart_type == 'PIE'):
                     plot = chart.plots[0]
-                    plot.has_data_labels = True
-                    plot.data_labels.font.size = font_default_size
-                    plot.data_labels.number_format = number_format1
+                    plot.has_data_labels = has_data_labels
+                    if has_data_labels:
+                        plot.data_labels.font.size = font_default_size
+                        plot.data_labels.number_format = number_format1
                     #data_labels = plot.data_labels
                     #plot.data_labels.position = XL_LABEL_POSITION.BEST_FIT
                 if (chart_type not in non_available_list):
