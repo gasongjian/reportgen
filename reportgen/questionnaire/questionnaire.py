@@ -455,13 +455,13 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     遍历一遍按文本数据，获取题号和每个题目的类型
     '''
     for name in d1.columns[headlen:]:
-        tmp=re.findall(u'^(\d{1,2})[、：:]',name)
+        tmp=re.findall(u'^(\d{1,3})[、：:]',name)
         # 识别多选题、排序题
         if tmp:
             new_name='Q'+tmp[0]
             current_name='Q'+tmp[0]
             code[new_name]={}
-            content=re.findall(u'\d{1,2}[、：:](.*)',name)
+            content=re.findall(u'\d{1,3}[、：:](.*)',name)
             code[new_name]['content']=content[0]
             d1.rename(columns={name:new_name},inplace=True)
             code[new_name]['qlist']=[]
@@ -478,7 +478,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
                 code[new_name]['qtype']=u'排序题'
         # 识别矩阵单选题
         else:
-            tmp2=re.findall(u'^第(\d{1,2})题\(.*?\)',name)
+            tmp2=re.findall(u'^第(\d{1,3})题\(.*?\)',name)
             if tmp2:
                 new_name='Q'+tmp2[0]
             else:
@@ -507,7 +507,7 @@ def wenjuanxing(filepath='.\\data',headlen=6):
     # 遍历按序号数据，完整编码
     d2qlist=d2.columns[6:].tolist()
     for name in d2qlist:
-        tmp1=re.findall(u'^(\d{1,2})[、：:]',name)# 单选题和填空题
+        tmp1=re.findall(u'^(\d{1,3})[、：:]',name)# 单选题和填空题
         tmp2=re.findall(u'^第(.*?)题',name)# 多选题、排序题和矩阵单选题
         if tmp1:
             current_name='Q'+tmp1[0]# 当前题目的题号
