@@ -159,7 +159,7 @@ def df_to_table(slide,df,left,top,width,height,index_names=False,columns_names=T
             cell=res.table.cell(col_index+columns_names,0)
             cell.text = '%s'%(col_name)
             #cell.text_frame.fit_text(max_size=12)
-    m = df.as_matrix()
+    m = df.values
     for row in range(rows):
         for col in range(cols):
             cell=res.table.cell(row+columns_names, col+index_names)
